@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VIPO | ניהול מלאי והזמנות — ניסים · דורון</title>
+  <meta name="description" content="מערכת ניהול מלאי והזמנות מופרדת לעסקי ניסים ודורון" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="app-body">
+  <header class="app-top">
+    <div class="app-top__inner">
+      <div class="app-top__brand">
+        <div class="brand-mark" aria-hidden="true">V</div>
+        <div class="app-top__text">
+          <p class="eyebrow">VIPO Suite</p>
+          <h1>מלאי · הזמנות · מכירות</h1>
+          <p class="app-top__tagline"><span class="tag tag--nissim">ניסים</span> לפי הזמנה · <span class="tag tag--doron">דורון</span> 78 · מכירות מהמלאי <strong>שבאמת אצלך</strong></p>
+        </div>
+      </div>
+      <div class="app-top__actions">
+        <button type="button" class="btn btn--primary" id="printReportBtn">הדפס דוח</button>
+        <button type="button" class="btn btn--outline-light" id="exportBackupBtn">יצוא JSON</button>
+        <label class="btn btn--outline-light file-btn" for="importBackupInput">יבוא JSON</label>
+        <input id="importBackupInput" type="file" accept="application/json" hidden />
+      </div>
+    </div>
+  </header>
+
+  <div class="app-nav-wrap">
+    <div class="app-nav-scroll">
+      <nav class="app-nav" aria-label="ניווט ראשי">
+        <button type="button" class="app-nav__btn is-active" data-panel="dashboard" aria-current="page" title="סקירה כללית">סקירה</button>
+        <button type="button" class="app-nav__btn app-nav__btn--nissim" data-panel="nissim" title="מלאי ומכירה — ניסים">ניסים</button>
+        <button type="button" class="app-nav__btn app-nav__btn--doron" data-panel="doron" title="מלאי ומכירה — דורון">דורון</button>
+        <button type="button" class="app-nav__btn" data-panel="received" title="מה הגיע בפועל">מה הגיע</button>
+        <button type="button" class="app-nav__btn" data-panel="gaps" title="פערים: הזמנה מול הגיע ומלאי אצלי">פערים</button>
+        <button type="button" class="app-nav__btn" data-panel="orders" title="הזמנות ואספקה">הזמנות</button>
+        <button type="button" class="app-nav__btn" data-panel="sales" title="מכירות וכלים">מכירות</button>
+      </nav>
+    </div>
+    <p class="app-nav-hint">הלשונית האחרונה נשמרת בטאב זה עד סגירת הדפדפן</p>
+  </div>
+
+  <main class="page-shell">
+    <section class="panel is-active" id="panel-dashboard" data-panel-id="dashboard">
+      <div class="dashboard-grid">
+        <article class="card card--nissim">
+          <div class="card__head">
+            <h2 class="card__title">ניסים</h2>
+            <span class="card__pill">מלאי מלא</span>
+          </div>
+          <p class="card__muted">לפי ההזמנה · מול מה שהגיע · מכירות מהמלאי אצלך</p>
+          <dl class="stat-dl stat-dl--6">
+            <div><dt>הוזמן</dt><dd id="dashNissimOpening">0</dd></div>
+            <div><dt>הגיע</dt><dd id="dashNissimReceived">0</dd></div>
+            <div><dt>חוסר מההזמנה</dt><dd id="dashNissimShortage">0</dd></div>
+            <div><dt>נמכר</dt><dd id="dashNissimSold">0</dd></div>
+            <div><dt>נותר אצלי</dt><dd id="dashNissimPhysical">0</dd></div>
+            <div><dt>מחזור ₪</dt><dd id="dashNissimRev">₪0</dd></div>
+          </dl>
+          <div class="card-actions">
+            <button type="button" class="btn btn--small" data-go-panel="nissim">לפי הזמנה</button>
+            <button type="button" class="btn btn--small" data-go-panel="received">מה הגיע</button>
+            <button type="button" class="btn btn--small btn--ghost-dark" data-go-panel="orders">הזמנה חדשה</button>
+          </div>
+        </article>
+        <article class="card card--doron">
+          <div class="card__head">
+            <h2 class="card__title">דורון</h2>
+            <span class="card__pill card__pill--doron">שולחן אחד</span>
+          </div>
+          <p class="card__muted">מול הגעה בפועל ומכירות</p>
+          <dl class="stat-dl stat-dl--6">
+            <div><dt>הוזמן</dt><dd id="dashDoronOpening">0</dd></div>
+            <div><dt>הגיע</dt><dd id="dashDoronReceived">0</dd></div>
+            <div><dt>חוסר מההזמנה</dt><dd id="dashDoronShortage">0</dd></div>
+            <div><dt>נמכר</dt><dd id="dashDoronSold">0</dd></div>
+            <div><dt>נותר אצלי</dt><dd id="dashDoronPhysical">0</dd></div>
+            <div><dt>מחזור ₪</dt><dd id="dashDoronRev">₪0</dd></div>
+          </dl>
+          <div class="card-actions">
+            <button type="button" class="btn btn--small" data-go-panel="doron">לפי הזמנה</button>
+            <button type="button" class="btn btn--small" data-go-panel="received">מה הגיע</button>
+            <button type="button" class="btn btn--small btn--ghost-dark" data-go-panel="sales">יומן מכירות</button>
+          </div>
+        </article>
+        <article class="card card--wide card--summary">
+          <h2 class="card__title">סיכום כולל</h2>
+          <dl class="stat-dl stat-dl--inline">
+            <div><dt>סה״כ הוזמן</dt><dd id="statOrderedTotal">0</dd></div>
+            <div><dt>סה״כ הגיע</dt><dd id="statReceivedTotal">0</dd></div>
+            <div><dt>חוסר מההזמנה</dt><dd id="statShortageTotal">0</dd></div>
+            <div><dt>נמכר</dt><dd id="statSoldQty">0</dd></div>
+            <div><dt>נותר אצלי</dt><dd id="statPhysicalTotal">0</dd></div>
+            <div><dt>עלות ידועה $</dt><dd id="statKnownCost">$0</dd></div>
+            <div><dt>מחזור ₪</dt><dd id="statRevenue">₪0</dd></div>
+            <div><dt>הזמנות פתוחות</dt><dd id="statOpenOrders">0</dd></div>
+          </dl>
+        </article>
+      </div>
+      <section class="card note-card">
+        <h2 class="note-card__title">איך זה עובד</h2>
+        <ul class="how-list">
+          <li><strong>לפי הזמנה</strong> — מה שהזמנת (טבלאות ניסים/דורון).</li>
+          <li><strong>מה הגיע</strong> — מה באמת הגיע אליך (למשל במאי); אם לא מעדכנים — נחשב כמו ההזמנה.</li>
+          <li><strong>מכירות</strong> — מורידות מ־<strong>מה שבאמת אצלך</strong>, לא מההזמנה.</li>
+          <li><strong>פערים</strong> — מה חסר מההזמנה (לא הגיע) ומה נשאר אצלך אחרי מכירות.</li>
+          <li><strong>גיבוי JSON</strong> — כולל גם את שדה «מה הגיע».</li>
+        </ul>
+        <details class="source-details">
+          <summary>תמונת מקור — הזמנה (ניסים)</summary>
+          <img class="source-image" src="assets/order-father.jpeg" alt="תמונת מקור הזמנה" width="920" />
+        </details>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-nissim" data-panel-id="nissim" hidden>
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow eyebrow--nissim">ניסים</p>
+          <h2 class="panel-title">לפי ההזמנה</h2>
+          <p class="panel-head__sub">כמויות כפי שהופיעו בהזמנה · מכירות יורדות מ־<strong>מה שהגיע בפועל</strong> (עדכנו בלשונית «מה הגיע»)</p>
+        </div>
+        <div class="filters">
+          <div class="field-grow">
+            <input id="inventorySearchNissim" type="search" placeholder="חיפוש מוצר, מידה או שם באנגלית" autocomplete="off" />
+          </div>
+          <button type="button" class="btn btn--small btn--muted" id="clearInventorySearchBtn" title="נקה חיפוש">נקה</button>
+          <button type="button" class="btn btn--small" id="exportInventoryNissimCsvBtn">יצוא CSV</button>
+        </div>
+      </div>
+      <div class="layout-split">
+        <div class="layout-split__main">
+          <div class="table-wrap table-wrap--tall">
+            <table class="data-table data-table--wrap-product">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>מוצר</th>
+                  <th>שם מקורי</th>
+                  <th>מידה</th>
+                  <th>הוזמן</th>
+                  <th>הגיע</th>
+                  <th>נמכר</th>
+                  <th>נותר אצלי</th>
+                  <th>חוסר מההזמנה</th>
+                  <th>מחיר $</th>
+                  <th>עלות $</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryBodyNissim"></tbody>
+            </table>
+          </div>
+        </div>
+        <aside class="layout-split__aside">
+          <section class="card card--nested card--sticky card--form-panel">
+            <h3 class="panel-aside-title">רישום מכירה</h3>
+            <p class="form-hint">מכירה מורידה מ־«נותר אצלי» לפי מה שהגיע בפועל</p>
+            <form id="saleFormNissim" class="sale-form sale-form--compact" data-business="nissim">
+              <label>תאריך <input class="js-sale-date" type="date" required /></label>
+              <label class="full">מוצר <select class="js-sale-item" required></select></label>
+              <label>כמות <input class="js-sale-qty" type="number" min="1" step="1" value="1" required /></label>
+              <label>מחיר יחידה ₪ <input class="js-sale-price" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
+              <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
+              <label class="full">סטטוס תשלום
+                <select class="js-sale-status">
+                  <option value="שולם">שולם</option>
+                  <option value="חלקי">חלקי</option>
+                  <option value="לא שולם">לא שולם</option>
+                  <option value="בהמתנה">בהמתנה</option>
+                </select>
+              </label>
+              <label class="full">הערות <textarea class="js-sale-notes" rows="2" placeholder="אופציונלי"></textarea></label>
+              <button type="submit" class="btn btn--primary full">שמור מכירה</button>
+            </form>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-doron" data-panel-id="doron" hidden>
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow eyebrow--doron">דורון</p>
+          <h2 class="panel-title">לפי ההזמנה</h2>
+          <p class="panel-head__sub">מידה <strong>80×90×70</strong> · 78 בהזמנה · מכירות מהמלאי שבאמת אצלך</p>
+        </div>
+        <button type="button" class="btn btn--small" id="exportInventoryDoronCsvBtn">יצוא CSV</button>
+      </div>
+      <div class="layout-split layout-split--doron">
+        <div class="layout-split__main">
+          <div class="doron-highlight">
+            <div class="doron-highlight__qty" id="doronRemainingHero">78</div>
+            <p>נותר אצלי (אחרי מכירות) מתוך מה שהגיע</p>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>מוצר</th>
+                  <th>מידה</th>
+                  <th>הוזמן</th>
+                  <th>הגיע</th>
+                  <th>נמכר</th>
+                  <th>נותר אצלי</th>
+                  <th>חוסר מההזמנה</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryBodyDoron"></tbody>
+            </table>
+          </div>
+        </div>
+        <aside class="layout-split__aside">
+          <section class="card card--nested card--sticky card--form-panel card--form-panel-doron">
+            <h3 class="panel-aside-title">רישום מכירה</h3>
+            <form id="saleFormDoron" class="sale-form sale-form--compact" data-business="doron">
+              <label>תאריך <input class="js-sale-date" type="date" required /></label>
+              <label class="full">מוצר <select class="js-sale-item" required></select></label>
+              <label>כמות <input class="js-sale-qty" type="number" min="1" step="1" value="1" required /></label>
+              <label>מחיר יחידה ₪ <input class="js-sale-price" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
+              <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
+              <label class="full">סטטוס תשלום
+                <select class="js-sale-status">
+                  <option value="שולם">שולם</option>
+                  <option value="חלקי">חלקי</option>
+                  <option value="לא שולם">לא שולם</option>
+                  <option value="בהמתנה">בהמתנה</option>
+                </select>
+              </label>
+              <label class="full">הערות <textarea class="js-sale-notes" rows="2"></textarea></label>
+              <button type="submit" class="btn btn--primary btn--doron-cta full">שמור מכירה</button>
+            </form>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-received" data-panel-id="received" hidden>
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow eyebrow--ink">מלאי אמיתי</p>
+          <h2 class="panel-title">מה הגיע בפועל אצלך</h2>
+          <p class="panel-head__sub">עדכנו כמויות שהגיעו בפועל (למשל אחרי ספירה במאי). עד שלא שומרים כאן — המערכת מניחה שהגיע <strong>בדיוק</strong> כמו בהזמנה. מכירות מורידות מ־«מה הגיע», לא מההזמנה.</p>
+        </div>
+        <button type="button" class="btn btn--primary" id="receivedSaveBtn">שמור כל השינויים</button>
+      </div>
+      <section class="card card--lift">
+        <h3 class="section-label">ניסים</h3>
+        <div class="table-wrap">
+          <table class="data-table data-table--wrap-product">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>מוצר</th>
+                <th>מידה</th>
+                <th>הוזמן</th>
+                <th>הגיע בפועל</th>
+                <th>חוסר מההזמנה</th>
+              </tr>
+            </thead>
+            <tbody id="receivedBodyNissim"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="card card--lift">
+        <h3 class="section-label">דורון</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>מוצר</th>
+                <th>מידה</th>
+                <th>הוזמן</th>
+                <th>הגיע בפועל</th>
+                <th>חוסר מההזמנה</th>
+              </tr>
+            </thead>
+            <tbody id="receivedBodyDoron"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-gaps" data-panel-id="gaps" hidden>
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow eyebrow--ink">סיכום</p>
+          <h2 class="panel-title">פערים ומלאי אצלי</h2>
+          <p class="panel-head__sub"><strong>חוסר מההזמנה</strong> = הוזמן − הגיע. <strong>נותר אצלי</strong> = הגיע − נמכר.</p>
+        </div>
+        <button type="button" class="btn btn--small" id="exportGapsCsvBtn">יצוא CSV פערים</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table data-table--gaps">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>עסק</th>
+              <th>מוצר</th>
+              <th>מידה</th>
+              <th>הוזמן</th>
+              <th>הגיע</th>
+              <th>נמכר</th>
+              <th>נותר אצלי</th>
+              <th>חוסר / עודף</th>
+            </tr>
+          </thead>
+          <tbody id="gapsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-orders" data-panel-id="orders" hidden>
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow eyebrow--ink">הזמנות</p>
+          <h2 class="panel-title">ניהול הזמנות</h2>
+          <p class="panel-head__sub">יצירה, סטטוס, אספקה מהמלאי</p>
+        </div>
+        <div class="filters">
+          <select id="orderFilterBusiness" class="select-compact">
+            <option value="all">כל העסקים</option>
+            <option value="nissim">ניסים</option>
+            <option value="doron">דורון</option>
+          </select>
+          <select id="orderFilterStatus" class="select-compact">
+            <option value="all">כל הסטטוסים</option>
+            <option value="חדש">חדש</option>
+            <option value="מאושר">מאושר</option>
+            <option value="בהכנה">בהכנה</option>
+            <option value="נשלח">נשלח</option>
+            <option value="הושלם">הושלם</option>
+            <option value="בוטל">בוטל</option>
+          </select>
+          <button type="button" class="btn btn--small" id="exportOrdersCsvBtn">יצוא CSV</button>
+        </div>
+      </div>
+
+      <div class="grid-two grid-two--orders">
+        <section class="card card--lift">
+          <h3 class="section-label">הזמנה חדשה</h3>
+          <form id="orderForm" class="order-form">
+            <label>עסק
+              <select id="orderBusiness" required>
+                <option value="nissim">ניסים</option>
+                <option value="doron">דורון</option>
+              </select>
+            </label>
+            <label>תאריך הזמנה <input id="orderDate" type="date" required /></label>
+            <label>לקוח <input id="orderCustomer" type="text" required placeholder="שם / עסק" /></label>
+            <label>טלפון <input id="orderPhone" type="tel" placeholder="05x..." /></label>
+            <label>סטטוס התחלתי
+              <select id="orderStatus">
+                <option value="חדש">חדש</option>
+                <option value="מאושר">מאושר</option>
+                <option value="בהכנה">בהכנה</option>
+              </select>
+            </label>
+            <label class="full">הערות <textarea id="orderNotes" rows="2"></textarea></label>
+            <div class="full order-lines-head">
+              <span>שורות הזמנה</span>
+              <button type="button" class="btn btn--small" id="addOrderLineBtn">+ שורה</button>
+            </div>
+            <div class="full order-lines" id="orderLinesContainer"></div>
+            <button type="submit" class="btn btn--primary full">שמור הזמנה</button>
+          </form>
+        </section>
+        <section class="card card--muted-side">
+          <h3 class="section-label">קצר</h3>
+          <ul class="how-list">
+            <li>מוצרים לפי העסק שנבחר בהזמנה.</li>
+            <li><strong>אספקה</strong> — רק אם יש מספיק במלאי.</li>
+            <li>לאחר אספקה: סטטוס «הושלם» + מכירות בלשונית מכירות.</li>
+          </ul>
+        </section>
+      </div>
+
+      <section class="card card--lift">
+        <h3 class="section-label">רשימת הזמנות</h3>
+        <div class="table-wrap">
+          <table class="data-table data-table--orders">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>קוד</th>
+                <th>תאריך</th>
+                <th>עסק</th>
+                <th>לקוח</th>
+                <th>טלפון</th>
+                <th>סטטוס</th>
+                <th>שורות</th>
+                <th>פעולות</th>
+              </tr>
+            </thead>
+            <tbody id="ordersBody"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="emptyOrdersState" hidden>אין הזמנות עדיין.</p>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-sales" data-panel-id="sales" hidden>
+      <div class="grid-two">
+        <section class="card card--lift">
+          <h3 class="section-label">מכירה</h3>
+          <p class="form-hint">בחרו עסק ואז מוצר — הרשימה לפי יתרה עדכנית</p>
+          <form id="saleFormGlobal" class="sale-form" data-business="">
+            <label>עסק
+              <select id="saleBusinessSelect" required>
+                <option value="nissim">ניסים</option>
+                <option value="doron">דורון</option>
+              </select>
+            </label>
+            <label>תאריך <input class="js-sale-date" type="date" required /></label>
+            <label class="full">מוצר <select class="js-sale-item" id="saleItemGlobal" required></select></label>
+            <label>כמות <input class="js-sale-qty" type="number" min="1" step="1" value="1" required /></label>
+            <label>מחיר יחידה ₪ <input class="js-sale-price" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
+            <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
+            <label>סטטוס תשלום
+              <select class="js-sale-status">
+                <option value="שולם">שולם</option>
+                <option value="חלקי">חלקי</option>
+                <option value="לא שולם">לא שולם</option>
+                <option value="בהמתנה">בהמתנה</option>
+              </select>
+            </label>
+            <label class="full">הערות <textarea class="js-sale-notes" rows="2"></textarea></label>
+            <button type="submit" class="btn btn--primary full">שמור מכירה</button>
+          </form>
+        </section>
+        <section class="card card--muted-side">
+          <h3 class="section-label">כלים</h3>
+          <div class="tool-list">
+            <button type="button" class="btn" id="exportSalesCsvBtn">יצוא מכירות CSV</button>
+            <button type="button" class="btn" id="exportInventoryFullCsvBtn">יצוא מלאי מלא CSV</button>
+            <button type="button" class="btn btn--muted" id="clearFiltersBtn">נקה חיפוש מכירות</button>
+            <button type="button" class="btn btn--danger" id="resetSalesBtn">איפוס מכירות</button>
+            <button type="button" class="btn btn--danger" id="resetOrdersBtn">איפוס הזמנות</button>
+          </div>
+          <div class="note-box">
+            <strong>נתונים</strong> ב־LocalStorage בדפדפן — ייצוא JSON לפני מחשב חדש או ניקוי.
+          </div>
+        </section>
+      </div>
+
+      <section class="card card--lift">
+        <div class="panel-head compact">
+          <h3 class="section-label section-label--flush">יומן מכירות</h3>
+          <input id="salesSearch" class="search-wide" type="search" placeholder="חיפוש במכירות" />
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>תאריך</th>
+                <th>עסק</th>
+                <th>מוצר</th>
+                <th>מידה</th>
+                <th>כמות</th>
+                <th>מחיר ₪</th>
+                <th>סה״כ ₪</th>
+                <th>לקוח</th>
+                <th>תשלום</th>
+                <th>הערות</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="salesBody"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="emptySalesState">עדיין לא הוזנו מכירות.</p>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>VIPO — ניסים · דורון</span>
+    <span>אתר סטטי · GitHub Pages</span>
+  </footer>
+
+  <div id="appToast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
