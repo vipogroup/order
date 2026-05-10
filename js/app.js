@@ -3,11 +3,15 @@ const STORAGE_KEY_V1 = 'vipo_inventory_sales_v1';
 const LEGACY_DORON_ID = 'doron-table-180x90x70';
 const DORON_ID = 'doron-table-80x90x70';
 const LAST_PANEL_KEY = 'vipo_last_panel';
-const VALID_PANELS = ['dashboard', 'nissim', 'doron', 'received', 'gaps', 'orders', 'sales'];
+const VALID_PANELS = ['dashboard', 'nissim', 'doron', 'received', 'gaps', 'orders', 'sales', 'payments'];
 
 const BUSINESS_LABEL = { nissim: 'ניסים', doron: 'דורון' };
 
 const ORDER_STATUSES = ['חדש', 'מאושר', 'בהכנה', 'נשלח', 'הושלם', 'בוטל'];
+
+/** יומן תשלומים: אלינו (שילם) / החזרה ממנו אליו */
+const PAY_FLOW_TO_ME = 'to_me';
+const PAY_FLOW_FROM_ME = 'from_me';
 
 const openingInventory = [
   { id: 'father-2layer-100x60x90', business: 'nissim', source: 'ניסים', product: 'שולחן עבודה נירוסטה 2 מדפים', original: '2-LAYERS WORKTABLE', size: '100*60*90CM', qtyPerCtn: 1, ttlCtns: 4, openingQty: 4, unit: 'PC', priceUsd: 57.14, amountUsd: 228.56, cbmCtn: 0.10, ttlCbm: 0.39 },
@@ -36,6 +40,88 @@ let sales = [];
 let orders = [];
 /** כמויות שהגיעו בפועל אצלך; אם אין מפתח — נחשב כמו ההזמנה */
 let receivedByItemId = {};
+/** יומני תשלומים, שער דולר, עלויות דורון */
+let payments = defaultPaymentsState();
+
+function defaultPaymentsState() {
+  return {
+    usdToIls: 3.7,
+    nissimLedger: [],
+    doronLedger: [],
+    doronProductIls: 0,
+    doronShippingIls: 0,
+    doronExtrasIls: 0
+  };
+}
+
+function numOr(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeLedgerEntry(row) {
+  if (!row || typeof row !== 'object') return null;
+  const amount = numOr(row.amountIls ?? row.amount, 0);
+  if (amount < 0) return null;
+  let flow = row.flow === PAY_FLOW_FROM_ME ? PAY_FLOW_FROM_ME : PAY_FLOW_TO_ME;
+  if (row.direction === 'out' || row.kind === 'refund') flow = PAY_FLOW_FROM_ME;
+  return {
+    id: String(row.id || newId()),
+    date: String(row.date || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+    amountIls: amount,
+    flow,
+    note: String(row.note ?? '').trim()
+  };
+}
+
+function mergePaymentsState(raw) {
+  const d = defaultPaymentsState();
+  if (!raw || typeof raw !== 'object') return d;
+  const rate = Number(raw.usdToIls);
+  if (Number.isFinite(rate) && rate > 0) d.usdToIls = rate;
+  if (Array.isArray(raw.nissimLedger)) {
+    d.nissimLedger = raw.nissimLedger.map(normalizeLedgerEntry).filter(Boolean);
+  }
+  if (Array.isArray(raw.doronLedger)) {
+    d.doronLedger = raw.doronLedger.map(normalizeLedgerEntry).filter(Boolean);
+  }
+  d.doronProductIls = Math.max(0, numOr(raw.doronProductIls, 0));
+  d.doronShippingIls = Math.max(0, numOr(raw.doronShippingIls, 0));
+  d.doronExtrasIls = Math.max(0, numOr(raw.doronExtrasIls, 0));
+  return d;
+}
+
+function ledgerTotalIls(ledger) {
+  if (!Array.isArray(ledger)) return 0;
+  return ledger.reduce((s, r) => s + numOr(r.amountIls, 0), 0);
+}
+
+function ledgerSumByFlow(ledger, flow) {
+  if (!Array.isArray(ledger)) return 0;
+  return ledger.reduce((s, r) => {
+    const f = r.flow === PAY_FLOW_FROM_ME ? PAY_FLOW_FROM_ME : PAY_FLOW_TO_ME;
+    return f === flow ? s + numOr(r.amountIls, 0) : s;
+  }, 0);
+}
+
+function flowLabel(flow) {
+  return flow === PAY_FLOW_FROM_ME ? 'החזרה ממני' : 'שילם / אליי';
+}
+
+/** עלות מפעל $ לניסים לפי כמות שהגיעה / הוזמנה × amountUsd לשורה */
+function factoryCostUsdNissimByReceived() {
+  return inventoryForBusiness('nissim').reduce((sum, item) => {
+    const amt = numOr(item.amountUsd, NaN);
+    const ord = item.openingQty;
+    if (!Number.isFinite(amt) || ord <= 0) return sum;
+    const rec = getReceivedQty(item.id);
+    return sum + (rec / ord) * amt;
+  }, 0);
+}
+
+function doronTotalCostIls() {
+  return numOr(payments.doronProductIls, 0) + numOr(payments.doronShippingIls, 0) + numOr(payments.doronExtrasIls, 0);
+}
 
 const els = {
   panels: document.querySelectorAll('.panel'),
@@ -101,7 +187,54 @@ const els = {
   clearFiltersBtn: document.getElementById('clearFiltersBtn'),
   resetSalesBtn: document.getElementById('resetSalesBtn'),
   resetOrdersBtn: document.getElementById('resetOrdersBtn'),
-  clearInventorySearchBtn: document.getElementById('clearInventorySearchBtn')
+  clearInventorySearchBtn: document.getElementById('clearInventorySearchBtn'),
+  paymentsUsdRate: document.getElementById('paymentsUsdRate'),
+  paymentsSaveRateBtn: document.getElementById('paymentsSaveRateBtn'),
+  exportPaymentsCsvBtn: document.getElementById('exportPaymentsCsvBtn'),
+  paymentsNissimAddForm: document.getElementById('paymentsNissimAddForm'),
+  paymentsDoronAddForm: document.getElementById('paymentsDoronAddForm'),
+  paymentsDoronCostsForm: document.getElementById('paymentsDoronCostsForm'),
+  payDoronProductIls: document.getElementById('payDoronProductIls'),
+  payDoronShippingIls: document.getElementById('payDoronShippingIls'),
+  payDoronExtrasIls: document.getElementById('payDoronExtrasIls'),
+  paymentsNissimLedgerBody: document.getElementById('paymentsNissimLedgerBody'),
+  paymentsDoronLedgerBody: document.getElementById('paymentsDoronLedgerBody'),
+  paymentsNissimLedgerEmpty: document.getElementById('paymentsNissimLedgerEmpty'),
+  paymentsDoronLedgerEmpty: document.getElementById('paymentsDoronLedgerEmpty'),
+  paySumNissimPaidIn: document.getElementById('paySumNissimPaidIn'),
+  paySumNissimGoods: document.getElementById('paySumNissimGoods'),
+  paySumNissimShort: document.getElementById('paySumNissimShort'),
+  paySumNissimCredit: document.getElementById('paySumNissimCredit'),
+  paySumNissimRefunded: document.getElementById('paySumNissimRefunded'),
+  paySumNissimCreditRemain: document.getElementById('paySumNissimCreditRemain'),
+  paySumNissimRev: document.getElementById('paySumNissimRev'),
+  paySumNissimGross: document.getElementById('paySumNissimGross'),
+  paySumDoronPaidIn: document.getElementById('paySumDoronPaidIn'),
+  paySumDoronInv: document.getElementById('paySumDoronInv'),
+  paySumDoronShort: document.getElementById('paySumDoronShort'),
+  paySumDoronCredit: document.getElementById('paySumDoronCredit'),
+  paySumDoronRefunded: document.getElementById('paySumDoronRefunded'),
+  paySumDoronCreditRemain: document.getElementById('paySumDoronCreditRemain'),
+  paySumDoronProfit: document.getElementById('paySumDoronProfit'),
+  paySumDoronSoldQty: document.getElementById('paySumDoronSoldQty'),
+  payNissimPaidIn: document.getElementById('payNissimPaidIn'),
+  payNissimGoods: document.getElementById('payNissimGoods'),
+  payNissimShort: document.getElementById('payNissimShort'),
+  payNissimCredit: document.getElementById('payNissimCredit'),
+  payNissimRefunded: document.getElementById('payNissimRefunded'),
+  payNissimCreditRemain: document.getElementById('payNissimCreditRemain'),
+  payNissimRev: document.getElementById('payNissimRev'),
+  payNissimGrossProfit: document.getElementById('payNissimGrossProfit'),
+  payDoronInv: document.getElementById('payDoronInv'),
+  payDoronPaidIn: document.getElementById('payDoronPaidIn'),
+  payDoronShort: document.getElementById('payDoronShort'),
+  payDoronCredit: document.getElementById('payDoronCredit'),
+  payDoronRefunded: document.getElementById('payDoronRefunded'),
+  payDoronCreditRemain: document.getElementById('payDoronCreditRemain'),
+  payDoronProfitOnInv: document.getElementById('payDoronProfitOnInv'),
+  payDoronSold: document.getElementById('payDoronSold'),
+  payDoronRev: document.getElementById('payDoronRev'),
+  payDoronRemaining: document.getElementById('payDoronRemaining')
 };
 
 let toastHideTimer;
@@ -132,18 +265,19 @@ function loadState() {
       if (ver >= 3 && p.receivedByItemId && typeof p.receivedByItemId === 'object') {
         received = { ...p.receivedByItemId };
       }
-      return { sales, orders, receivedByItemId: received };
+      const pay = mergePaymentsState(p.payments);
+      return { sales, orders, receivedByItemId: received, payments: pay };
     }
     const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
     if (rawV1) {
       const p = JSON.parse(rawV1);
       const s = Array.isArray(p.sales) ? migrateSalesItemIds(p.sales) : [];
-      return { sales: s, orders: [], receivedByItemId: {} };
+      return { sales: s, orders: [], receivedByItemId: {}, payments: defaultPaymentsState() };
     }
   } catch (e) {
     console.error(e);
   }
-  return { sales: [], orders: [], receivedByItemId: {} };
+  return { sales: [], orders: [], receivedByItemId: {}, payments: defaultPaymentsState() };
 }
 
 function migrateSalesItemIds(list) {
@@ -156,11 +290,12 @@ function migrateSalesItemIds(list) {
 
 function saveState() {
   const payload = {
-    version: 3,
+    version: 4,
     savedAt: new Date().toISOString(),
     sales,
     orders,
-    receivedByItemId
+    receivedByItemId,
+    payments
   };
   localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(payload));
 }
@@ -248,6 +383,10 @@ function formatUsd(value) {
 
 function formatIls(value) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
+function formatIlsMoney(value) {
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
 }
 
 function formatNumber(value, digits = 2) {
@@ -932,11 +1071,12 @@ function downloadCsv(filename, rows) {
 
 function exportBackup() {
   const payload = {
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     sales,
     orders,
-    receivedByItemId
+    receivedByItemId,
+    payments
   };
   downloadBlob(`vipo-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2), 'application/json');
 }
@@ -954,7 +1094,11 @@ function importBackup(ev) {
       if (payload.receivedByItemId && typeof payload.receivedByItemId === 'object') {
         receivedByItemId = { ...payload.receivedByItemId };
       }
+      if (payload.payments && typeof payload.payments === 'object') {
+        payments = mergePaymentsState(payload.payments);
+      }
       saveState();
+      syncPaymentsFormInputs();
       renderAll();
       showToast('גיבוי נטען בהצלחה');
     } catch (e) {
@@ -978,6 +1122,182 @@ function downloadBlob(filename, content, type) {
   URL.revokeObjectURL(url);
 }
 
+function setPaymentsAddFormDates() {
+  const today = new Date().toISOString().slice(0, 10);
+  const ni = els.paymentsNissimAddForm?.querySelector('input[name="date"]');
+  const di = els.paymentsDoronAddForm?.querySelector('input[name="date"]');
+  if (ni) ni.value = today;
+  if (di) di.value = today;
+}
+
+function sortLedgerDesc(ledger) {
+  return [...ledger].sort((a, b) => {
+    const c = String(b.date || '').localeCompare(String(a.date || ''));
+    if (c !== 0) return c;
+    return String(b.id || '').localeCompare(String(a.id || ''));
+  });
+}
+
+function syncPaymentsFormInputs() {
+  if (els.paymentsUsdRate) els.paymentsUsdRate.value = String(numOr(payments.usdToIls, 3.7));
+  if (els.payDoronProductIls) els.payDoronProductIls.value = String(numOr(payments.doronProductIls, 0));
+  if (els.payDoronShippingIls) els.payDoronShippingIls.value = String(numOr(payments.doronShippingIls, 0));
+  if (els.payDoronExtrasIls) els.payDoronExtrasIls.value = String(numOr(payments.doronExtrasIls, 0));
+}
+
+function renderPayments() {
+  const rate = Math.max(0.0001, numOr(payments.usdToIls, 3.7));
+  const nFactoryUsd = factoryCostUsdNissimByReceived();
+  const nFactoryIls = nFactoryUsd * rate;
+  const nIn = ledgerSumByFlow(payments.nissimLedger, PAY_FLOW_TO_ME);
+  const nOut = ledgerSumByFlow(payments.nissimLedger, PAY_FLOW_FROM_ME);
+  const nRev = revenueForBusiness('nissim');
+  const nGross = nRev - nFactoryIls;
+  const nShortVsGoods = Math.max(0, nFactoryIls - nIn);
+  const nCreditRaw = Math.max(0, nIn - nFactoryIls);
+  const nCreditRemain = Math.max(0, nCreditRaw - nOut);
+
+  const dCost = doronTotalCostIls();
+  const dIn = ledgerSumByFlow(payments.doronLedger, PAY_FLOW_TO_ME);
+  const dOut = ledgerSumByFlow(payments.doronLedger, PAY_FLOW_FROM_ME);
+  const dSold = getSoldQty(DORON_ID);
+  const dRem = getRemainingQty(DORON_ID);
+  const dRev = revenueForBusiness('doron');
+  const dShortVsInv = Math.max(0, dCost - dIn);
+  const dCreditRaw = Math.max(0, dIn - dCost);
+  const dCreditRemain = Math.max(0, dCreditRaw - dOut);
+  const dProfitOnInv = dRev - dCost;
+
+  const setDd = (el, text, neg) => {
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('stat-dd--neg', !!neg);
+  };
+
+  setDd(els.paySumNissimPaidIn, formatIlsMoney(nIn), false);
+  setDd(els.paySumNissimGoods, formatIlsMoney(nFactoryIls), false);
+  setDd(els.paySumNissimShort, formatIlsMoney(nShortVsGoods), nShortVsGoods > 0);
+  setDd(els.paySumNissimCredit, formatIlsMoney(nCreditRaw), false);
+  setDd(els.paySumNissimRefunded, formatIlsMoney(nOut), false);
+  setDd(els.paySumNissimCreditRemain, formatIlsMoney(nCreditRemain), nCreditRemain > 0);
+  setDd(els.paySumNissimRev, formatIlsMoney(nRev), false);
+  setDd(els.paySumNissimGross, formatIlsMoney(nGross), nGross < 0);
+
+  setDd(els.paySumDoronPaidIn, formatIlsMoney(dIn), false);
+  setDd(els.paySumDoronInv, formatIlsMoney(dCost), false);
+  setDd(els.paySumDoronShort, formatIlsMoney(dShortVsInv), dShortVsInv > 0);
+  setDd(els.paySumDoronCredit, formatIlsMoney(dCreditRaw), false);
+  setDd(els.paySumDoronRefunded, formatIlsMoney(dOut), false);
+  setDd(els.paySumDoronCreditRemain, formatIlsMoney(dCreditRemain), dCreditRemain > 0);
+  setDd(els.paySumDoronProfit, formatIlsMoney(dProfitOnInv), dProfitOnInv < 0);
+  if (els.paySumDoronSoldQty) els.paySumDoronSoldQty.textContent = dSold.toLocaleString('he-IL');
+
+  setDd(els.payNissimPaidIn, formatIlsMoney(nIn), false);
+  setDd(els.payNissimGoods, formatIlsMoney(nFactoryIls), false);
+  setDd(els.payNissimShort, formatIlsMoney(nShortVsGoods), nShortVsGoods > 0);
+  setDd(els.payNissimCredit, formatIlsMoney(nCreditRaw), false);
+  setDd(els.payNissimRefunded, formatIlsMoney(nOut), false);
+  setDd(els.payNissimCreditRemain, formatIlsMoney(nCreditRemain), nCreditRemain > 0);
+  setDd(els.payNissimRev, formatIlsMoney(nRev), false);
+  setDd(els.payNissimGrossProfit, formatIlsMoney(nGross), nGross < 0);
+
+  setDd(els.payDoronInv, formatIlsMoney(dCost), false);
+  setDd(els.payDoronPaidIn, formatIlsMoney(dIn), false);
+  setDd(els.payDoronShort, formatIlsMoney(dShortVsInv), dShortVsInv > 0);
+  setDd(els.payDoronCredit, formatIlsMoney(dCreditRaw), false);
+  setDd(els.payDoronRefunded, formatIlsMoney(dOut), false);
+  setDd(els.payDoronCreditRemain, formatIlsMoney(dCreditRemain), dCreditRemain > 0);
+  setDd(els.payDoronProfitOnInv, formatIlsMoney(dProfitOnInv), dProfitOnInv < 0);
+  if (els.payDoronSold) els.payDoronSold.textContent = dSold.toLocaleString('he-IL');
+  setDd(els.payDoronRev, formatIlsMoney(dRev), false);
+  if (els.payDoronRemaining) els.payDoronRemaining.textContent = dRem.toLocaleString('he-IL');
+
+  const renderLedger = (tbody, ledger, kind) => {
+    if (!tbody) return;
+    const sorted = sortLedgerDesc(ledger);
+    if (sorted.length === 0) {
+      tbody.innerHTML = '';
+      return;
+    }
+    tbody.innerHTML = sorted.map((r, idx) => {
+      const f = r.flow === PAY_FLOW_FROM_ME ? PAY_FLOW_FROM_ME : PAY_FLOW_TO_ME;
+      return `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${escapeHtml(r.date)}</td>
+        <td><span class="payments-flow-tag ${f === PAY_FLOW_FROM_ME ? 'payments-flow-tag--out' : 'payments-flow-tag--in'}">${escapeHtml(flowLabel(f))}</span></td>
+        <td>${formatIlsMoney(r.amountIls)}</td>
+        <td>${escapeHtml(r.note || '—')}</td>
+        <td><button type="button" class="btn btn--small btn--danger js-del-ledger" data-kind="${kind}" data-id="${escapeHtml(r.id)}">מחק</button></td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('.js-del-ledger').forEach(btn => {
+      btn.addEventListener('click', () => deletePaymentLedgerRow(btn.getAttribute('data-kind'), btn.getAttribute('data-id')));
+    });
+  };
+
+  renderLedger(els.paymentsNissimLedgerBody, payments.nissimLedger, 'nissim');
+  renderLedger(els.paymentsDoronLedgerBody, payments.doronLedger, 'doron');
+
+  if (els.paymentsNissimLedgerEmpty) {
+    els.paymentsNissimLedgerEmpty.hidden = (payments.nissimLedger || []).length > 0;
+  }
+  if (els.paymentsDoronLedgerEmpty) {
+    els.paymentsDoronLedgerEmpty.hidden = (payments.doronLedger || []).length > 0;
+  }
+}
+
+function deletePaymentLedgerRow(kind, id) {
+  if (!id || !confirm('למחוק רשומה מהיומן?')) return;
+  const key = kind === 'doron' ? 'doronLedger' : 'nissimLedger';
+  if (!payments[key]) return;
+  payments[key] = payments[key].filter(r => r.id !== id);
+  saveState();
+  renderAll();
+  showToast('הרשומה נמחקה');
+}
+
+function buildPaymentsCsvRows() {
+  const rate = numOr(payments.usdToIls, 3.7);
+  const fusd = factoryCostUsdNissimByReceived();
+  const fils = fusd * rate;
+  const nIn = ledgerSumByFlow(payments.nissimLedger, PAY_FLOW_TO_ME);
+  const nOut = ledgerSumByFlow(payments.nissimLedger, PAY_FLOW_FROM_ME);
+  const nRev = revenueForBusiness('nissim');
+  const dCost = doronTotalCostIls();
+  const dIn = ledgerSumByFlow(payments.doronLedger, PAY_FLOW_TO_ME);
+  const dOut = ledgerSumByFlow(payments.doronLedger, PAY_FLOW_FROM_ME);
+  const dRev = revenueForBusiness('doron');
+  const rows = [
+    ['type', 'date', 'flow', 'amount_ils', 'note_or_metric', 'extra'],
+    ['summary', 'usd_to_ils', '', rate, '', ''],
+    ['summary', 'nissim_factory_usd_received_basis', '', fusd, '', ''],
+    ['summary', 'nissim_goods_ils', '', fils, '', ''],
+    ['summary', 'nissim_paid_in_ils', '', nIn, '', ''],
+    ['summary', 'nissim_refunded_out_ils', '', nOut, '', ''],
+    ['summary', 'nissim_short_vs_goods', '', Math.max(0, fils - nIn), '', ''],
+    ['summary', 'nissim_credit_remain', '', Math.max(0, Math.max(0, nIn - fils) - nOut), '', ''],
+    ['summary', 'nissim_revenue_ils', '', nRev, '', ''],
+    ['summary', 'nissim_gross_profit_ils', '', nRev - fils, '', ''],
+    ['summary', 'doron_investment_ils', '', dCost, '', ''],
+    ['summary', 'doron_paid_in_ils', '', dIn, '', ''],
+    ['summary', 'doron_refunded_out_ils', '', dOut, '', ''],
+    ['summary', 'doron_short_vs_investment', '', Math.max(0, dCost - dIn), '', ''],
+    ['summary', 'doron_credit_remain', '', Math.max(0, Math.max(0, dIn - dCost) - dOut), '', ''],
+    ['summary', 'doron_profit_sales_minus_investment', '', dRev - dCost, '', ''],
+    ['summary', 'doron_sold_qty', '', getSoldQty(DORON_ID), '', '']
+  ];
+  for (const r of sortLedgerDesc(payments.nissimLedger)) {
+    const f = r.flow === PAY_FLOW_FROM_ME ? PAY_FLOW_FROM_ME : PAY_FLOW_TO_ME;
+    rows.push(['nissim_ledger', r.date, f, r.amountIls, r.note, '']);
+  }
+  for (const r of sortLedgerDesc(payments.doronLedger)) {
+    const f = r.flow === PAY_FLOW_FROM_ME ? PAY_FLOW_FROM_ME : PAY_FLOW_TO_ME;
+    rows.push(['doron_ledger', r.date, f, r.amountIls, r.note, '']);
+  }
+  return rows;
+}
+
 function renderAll() {
   renderDashboard();
   renderInventoryNissim();
@@ -986,6 +1306,7 @@ function renderAll() {
   renderGapsTable();
   renderSalesTable();
   renderOrdersTable();
+  renderPayments();
   populateSaleSelect(els.saleFormNissim?.querySelector('.js-sale-item'), 'nissim');
   populateSaleSelect(els.saleFormDoron?.querySelector('.js-sale-item'), 'doron');
   if (els.saleBusinessSelect && els.saleItemGlobal) {
@@ -1007,7 +1328,9 @@ function init() {
   sales = state.sales;
   orders = state.orders;
   receivedByItemId = state.receivedByItemId || {};
+  payments = state.payments || defaultPaymentsState();
   saveState();
+  syncPaymentsFormInputs();
 
   els.orderDate.valueAsDate = new Date();
   addOrderLineRow();
@@ -1062,9 +1385,73 @@ function init() {
   els.receivedSaveBtn?.addEventListener('click', saveReceivedFromForm);
   els.exportGapsCsvBtn?.addEventListener('click', () => downloadCsv('vipo-gaps-ordered-vs-received.csv', buildGapsCsvRows()));
 
+  els.paymentsSaveRateBtn?.addEventListener('click', () => {
+    const r = Number(els.paymentsUsdRate?.value);
+    if (!Number.isFinite(r) || r <= 0) {
+      alert('שער לא תקין.');
+      return;
+    }
+    payments.usdToIls = r;
+    saveState();
+    renderAll();
+    showToast('שער הדולר נשמר');
+  });
+
+  els.exportPaymentsCsvBtn?.addEventListener('click', () => downloadCsv('vipo-payments.csv', buildPaymentsCsvRows()));
+
+  els.paymentsNissimAddForm?.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const fd = new FormData(els.paymentsNissimAddForm);
+    const date = String(fd.get('date') || '').slice(0, 10);
+    const amount = Number(fd.get('amount'));
+    const note = String(fd.get('note') || '').trim();
+    const flow = fd.get('flow') === PAY_FLOW_FROM_ME ? PAY_FLOW_FROM_ME : PAY_FLOW_TO_ME;
+    if (!date || !Number.isFinite(amount) || amount < 0) {
+      alert('תאריך וסכום תקינים נדרשים.');
+      return;
+    }
+    payments.nissimLedger.unshift(normalizeLedgerEntry({ id: newId(), date, amountIls: amount, note, flow }));
+    saveState();
+    els.paymentsNissimAddForm.reset();
+    setPaymentsAddFormDates();
+    renderAll();
+    showToast(flow === PAY_FLOW_FROM_ME ? 'החזרה לניסים נרשמה' : 'תשלום מניסים נרשם');
+  });
+
+  els.paymentsDoronAddForm?.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const fd = new FormData(els.paymentsDoronAddForm);
+    const date = String(fd.get('date') || '').slice(0, 10);
+    const amount = Number(fd.get('amount'));
+    const note = String(fd.get('note') || '').trim();
+    const flow = fd.get('flow') === PAY_FLOW_FROM_ME ? PAY_FLOW_FROM_ME : PAY_FLOW_TO_ME;
+    if (!date || !Number.isFinite(amount) || amount < 0) {
+      alert('תאריך וסכום תקינים נדרשים.');
+      return;
+    }
+    payments.doronLedger.unshift(normalizeLedgerEntry({ id: newId(), date, amountIls: amount, note, flow }));
+    saveState();
+    els.paymentsDoronAddForm.reset();
+    setPaymentsAddFormDates();
+    renderAll();
+    showToast(flow === PAY_FLOW_FROM_ME ? 'החזרה לדורון נרשמה' : 'תשלום מדורון נרשם');
+  });
+
+  els.paymentsDoronCostsForm?.addEventListener('submit', ev => {
+    ev.preventDefault();
+    payments.doronProductIls = Math.max(0, numOr(els.payDoronProductIls?.value, 0));
+    payments.doronShippingIls = Math.max(0, numOr(els.payDoronShippingIls?.value, 0));
+    payments.doronExtrasIls = Math.max(0, numOr(els.payDoronExtrasIls?.value, 0));
+    saveState();
+    syncPaymentsFormInputs();
+    renderAll();
+    showToast('עלויות דורון נשמרו');
+  });
+
   setSaleFormDates(els.saleFormNissim);
   setSaleFormDates(els.saleFormDoron);
   setSaleFormDates(els.saleFormGlobal);
+  setPaymentsAddFormDates();
   renderAll();
 }
 

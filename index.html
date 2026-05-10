@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>VIPO | ניהול מלאי והזמנות — ניסים · דורון</title>
   <meta name="description" content="מערכת ניהול מלאי והזמנות מופרדת לעסקי ניסים ודורון" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,18 +13,14 @@
 <body class="app-body">
   <header class="app-top">
     <div class="app-top__inner">
-      <div class="app-top__brand">
-        <div class="brand-mark" aria-hidden="true">V</div>
-        <div class="app-top__text">
-          <p class="eyebrow">VIPO Suite</p>
-          <h1>מלאי · הזמנות · מכירות</h1>
-          <p class="app-top__tagline"><span class="tag tag--nissim">ניסים</span> לפי הזמנה · <span class="tag tag--doron">דורון</span> 78 · מכירות מהמלאי <strong>שבאמת אצלך</strong></p>
-        </div>
+      <div class="app-top__lead">
+        <span class="brand-mark" aria-hidden="true">V</span>
+        <h1 class="app-top__title">VIPO <span class="app-top__title-muted">· מלאי והזמנות</span></h1>
       </div>
       <div class="app-top__actions">
-        <button type="button" class="btn btn--primary" id="printReportBtn">הדפס דוח</button>
-        <button type="button" class="btn btn--outline-light" id="exportBackupBtn">יצוא JSON</button>
-        <label class="btn btn--outline-light file-btn" for="importBackupInput">יבוא JSON</label>
+        <button type="button" class="btn btn--small btn--primary" id="printReportBtn">הדפס דוח</button>
+        <button type="button" class="btn btn--small btn--outline-light" id="exportBackupBtn">יצוא JSON</button>
+        <label class="btn btn--small btn--outline-light file-btn" for="importBackupInput">יבוא JSON</label>
         <input id="importBackupInput" type="file" accept="application/json" hidden />
       </div>
     </div>
@@ -40,6 +36,7 @@
         <button type="button" class="app-nav__btn" data-panel="gaps" title="פערים: הזמנה מול הגיע ומלאי אצלי">פערים</button>
         <button type="button" class="app-nav__btn" data-panel="orders" title="הזמנות ואספקה">הזמנות</button>
         <button type="button" class="app-nav__btn" data-panel="sales" title="מכירות וכלים">מכירות</button>
+        <button type="button" class="app-nav__btn" data-panel="payments" title="העברות, עלויות ורווח">תשלומים</button>
       </nav>
     </div>
     <p class="app-nav-hint">הלשונית האחרונה נשמרת בטאב זה עד סגירת הדפדפן</p>
@@ -65,6 +62,7 @@
           <div class="card-actions">
             <button type="button" class="btn btn--small" data-go-panel="nissim">לפי הזמנה</button>
             <button type="button" class="btn btn--small" data-go-panel="received">מה הגיע</button>
+            <button type="button" class="btn btn--small" data-go-panel="payments">תשלומים</button>
             <button type="button" class="btn btn--small btn--ghost-dark" data-go-panel="orders">הזמנה חדשה</button>
           </div>
         </article>
@@ -85,6 +83,7 @@
           <div class="card-actions">
             <button type="button" class="btn btn--small" data-go-panel="doron">לפי הזמנה</button>
             <button type="button" class="btn btn--small" data-go-panel="received">מה הגיע</button>
+            <button type="button" class="btn btn--small" data-go-panel="payments">תשלומים</button>
             <button type="button" class="btn btn--small btn--ghost-dark" data-go-panel="sales">יומן מכירות</button>
           </div>
         </article>
@@ -110,6 +109,7 @@
           <li><strong>מכירות</strong> — מורידות מ־<strong>מה שבאמת אצלך</strong>, לא מההזמנה.</li>
           <li><strong>פערים</strong> — מה חסר מההזמנה (לא הגיע) ומה נשאר אצלך אחרי מכירות.</li>
           <li><strong>גיבוי JSON</strong> — כולל גם את שדה «מה הגיע».</li>
+          <li><strong>תשלומים</strong> — יומן העברות מול עלות מפעל (ניסים), ותשלומי דורון מול משלוח/מסביבים.</li>
         </ul>
         <details class="source-details">
           <summary>תמונת מקור — הזמנה (ניסים)</summary>
@@ -402,6 +402,159 @@
           </table>
         </div>
         <p class="empty-state" id="emptyOrdersState" hidden>אין הזמנות עדיין.</p>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-payments" data-panel-id="payments" hidden>
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow eyebrow--ink">כספים</p>
+          <h2 class="panel-title">תשלומים — מי שילם, מה חסר, מה קרן, מה החזרנו</h2>
+          <p class="panel-head__sub">מנקודת מבט <strong>אצלך</strong>: «שילם / אליי» = כסף שנכנס מניסים או מדורון. «החזרה ממני» = כסף שיצא בחזרה אליהם. עלות סחורת ניסים מחושבת לפי <strong>מה שהגיע</strong>; השקעת דורון = מוצר + משלוח + מסביבים.</p>
+        </div>
+        <div class="filters payments-toolbar">
+          <label class="payments-rate-label">שער המרה $→₪
+            <input id="paymentsUsdRate" class="payments-rate-input" type="number" min="0.01" step="0.01" value="3.7" />
+          </label>
+          <button type="button" class="btn btn--small btn--primary" id="paymentsSaveRateBtn">שמור שער</button>
+          <button type="button" class="btn btn--small" id="exportPaymentsCsvBtn">יצוא CSV תשלומים</button>
+        </div>
+      </div>
+
+      <div class="payments-summary card card--wide card--summary">
+        <h3 class="section-label section-label--flush">סיכום מהיר — ניסים</h3>
+        <dl class="stat-dl stat-dl--inline payments-summary-dl">
+          <div><dt>שילם / אליי (סה״כ)</dt><dd id="paySumNissimPaidIn">₪0</dd></div>
+          <div><dt>מחיר הסחורה (עלות מפעל ₪)</dt><dd id="paySumNissimGoods">₪0</dd></div>
+          <div><dt>חסר ממנו לכיסוי הסחורה</dt><dd id="paySumNissimShort">₪0</dd></div>
+          <div><dt>קרן לזכותו (עודף על הסחורה)</dt><dd id="paySumNissimCredit">₪0</dd></div>
+          <div><dt>החזרנו לו בינתיים</dt><dd id="paySumNissimRefunded">₪0</dd></div>
+          <div><dt>נותר להחזיר לו (קרן)</dt><dd id="paySumNissimCreditRemain">₪0</dd></div>
+          <div><dt>מחזור מכירות</dt><dd id="paySumNissimRev">₪0</dd></div>
+          <div><dt>רווח גולמי (מכירות − עלות מפעל)</dt><dd id="paySumNissimGross">₪0</dd></div>
+        </dl>
+        <h3 class="section-label payments-summary-split">סיכום מהיר — דורון</h3>
+        <dl class="stat-dl stat-dl--inline payments-summary-dl">
+          <div><dt>השקעה כוללת (מוצר+משלוח+מסביבים)</dt><dd id="paySumDoronInv">₪0</dd></div>
+          <div><dt>שילם / אליי (סה״כ)</dt><dd id="paySumDoronPaidIn">₪0</dd></div>
+          <div><dt>חסר ממנו להשלמת ההשקעה</dt><dd id="paySumDoronShort">₪0</dd></div>
+          <div><dt>קרן לזכותו (עודף על ההשקעה)</dt><dd id="paySumDoronCredit">₪0</dd></div>
+          <div><dt>החזרנו לו בינתיים</dt><dd id="paySumDoronRefunded">₪0</dd></div>
+          <div><dt>נותר להחזיר לו (קרן)</dt><dd id="paySumDoronCreditRemain">₪0</dd></div>
+          <div><dt>רווח על ההשקעה (מכירות − השקעה)</dt><dd id="paySumDoronProfit">₪0</dd></div>
+          <div><dt>יחידות נמכרו</dt><dd id="paySumDoronSoldQty">0</dd></div>
+        </dl>
+      </div>
+
+      <div class="payments-grid">
+        <article class="card card--nissim payments-card">
+          <div class="card__head">
+            <h2 class="card__title">ניסים</h2>
+            <span class="card__pill">מול סחורה</span>
+          </div>
+          <p class="card__muted"><strong>מחיר הסחורה</strong> = עלות מפעל לפי מה שהגיע (טבלה + שער). <strong>חסר לכיסוי</strong> = אם הסחורה יקרה יותר ממה שהועבר אליך. <strong>קרן לזכותו</strong> = אם העביר יותר מעלות הסחורה. <strong>החזרנו</strong> = סכומי «החזרה ממני» ביומן. <strong>נותר להחזיר</strong> = קרן מינוס החזרים.</p>
+          <dl class="stat-dl stat-dl--stacked payments-flow-dl">
+            <div><dt>שילם / העביר אליי</dt><dd id="payNissimPaidIn">₪0</dd></div>
+            <div><dt>מחיר הסחורה (עלות מפעל ₪)</dt><dd id="payNissimGoods">₪0</dd></div>
+            <div><dt>חסר ממנו לכיסוי הסחורה</dt><dd id="payNissimShort">₪0</dd></div>
+            <div><dt>קרן לזכותו (עודף על הסחורה)</dt><dd id="payNissimCredit">₪0</dd></div>
+            <div><dt>החזרנו לו בינתיים</dt><dd id="payNissimRefunded">₪0</dd></div>
+            <div><dt>נותר להחזיר לו</dt><dd id="payNissimCreditRemain">₪0</dd></div>
+            <div><dt>מחזור מכירות</dt><dd id="payNissimRev">₪0</dd></div>
+            <div><dt>רווח גולמי ממכירות (מחזור − עלות מפעל)</dt><dd id="payNissimGrossProfit">₪0</dd></div>
+          </dl>
+          <h3 class="payments-subtitle">יומן תנועות</h3>
+          <form id="paymentsNissimAddForm" class="payments-add-form">
+            <label>תאריך <input name="date" type="date" required /></label>
+            <label>סכום ₪ <input name="amount" type="number" min="0" step="0.01" required /></label>
+            <label>כיוון
+              <select name="flow">
+                <option value="to_me">שילם / העביר אליי</option>
+                <option value="from_me">החזרה ממני אליו</option>
+              </select>
+            </label>
+            <label class="full">הערה <input name="note" type="text" placeholder="העברה / החזר / דמי משלוח" /></label>
+            <button type="submit" class="btn btn--small btn--primary">הוסף ליומן</button>
+          </form>
+          <div class="table-wrap table-wrap--short">
+            <table class="data-table data-table--compact">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>תאריך</th>
+                  <th>כיוון</th>
+                  <th>סכום ₪</th>
+                  <th>הערה</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="paymentsNissimLedgerBody"></tbody>
+            </table>
+          </div>
+          <p class="empty-state payments-empty" id="paymentsNissimLedgerEmpty" hidden>אין רישומים — הוסיפו שורה ראשונה ביומן.</p>
+        </article>
+
+        <article class="card card--doron payments-card">
+          <div class="card__head">
+            <h2 class="card__title">דורון</h2>
+            <span class="card__pill card__pill--doron">השקעה מלאה</span>
+          </div>
+          <p class="card__muted"><strong>השקעה</strong> = מה עלה לך בפועל (מוצר+משלוח+מסביבים). <strong>רווח על ההשקעה</strong> = מחזור מכירות דורון מינוס ההשקעה (כמה נשאר מהמכירות אחרי כיסוי עלות העסקה — לא כולל חלוקת רווחים משפטית).</p>
+          <form id="paymentsDoronCostsForm" class="payments-costs-form">
+            <label>עלות מוצר/יבוא (₪) <input id="payDoronProductIls" type="number" min="0" step="0.01" value="0" /></label>
+            <label>משלוח (₪) <input id="payDoronShippingIls" type="number" min="0" step="0.01" value="0" /></label>
+            <label>מסביבים / נלווה (₪) <input id="payDoronExtrasIls" type="number" min="0" step="0.01" value="0" /></label>
+            <button type="submit" class="btn btn--small btn--doron-cta">שמור עלויות</button>
+          </form>
+          <dl class="stat-dl stat-dl--stacked payments-flow-dl">
+            <div><dt>השקעה כוללת</dt><dd id="payDoronInv">₪0</dd></div>
+            <div><dt>שילם / אליי</dt><dd id="payDoronPaidIn">₪0</dd></div>
+            <div><dt>חסר ממנו להשלמת ההשקעה</dt><dd id="payDoronShort">₪0</dd></div>
+            <div><dt>קרן לזכותו (עודף על ההשקעה)</dt><dd id="payDoronCredit">₪0</dd></div>
+            <div><dt>החזרנו לו בינתיים</dt><dd id="payDoronRefunded">₪0</dd></div>
+            <div><dt>נותר להחזיר לו</dt><dd id="payDoronCreditRemain">₪0</dd></div>
+            <div><dt>מחזור מכירות</dt><dd id="payDoronRev">₪0</dd></div>
+            <div><dt>רווח על ההשקעה (מכירות − השקעה)</dt><dd id="payDoronProfitOnInv">₪0</dd></div>
+            <div><dt>נמכרו · נותר אצלי</dt><dd><span id="payDoronSold">0</span> · <span id="payDoronRemaining">0</span></dd></div>
+          </dl>
+          <h3 class="payments-subtitle">יומן תנועות</h3>
+          <form id="paymentsDoronAddForm" class="payments-add-form">
+            <label>תאריך <input name="date" type="date" required /></label>
+            <label>סכום ₪ <input name="amount" type="number" min="0" step="0.01" required /></label>
+            <label>כיוון
+              <select name="flow">
+                <option value="to_me">שילם / אליי</option>
+                <option value="from_me">החזרה ממני אליו</option>
+              </select>
+            </label>
+            <label class="full">הערה <input name="note" type="text" placeholder="מקדמה / סופי / החזר" /></label>
+            <button type="submit" class="btn btn--small btn--doron-cta">הוסף ליומן</button>
+          </form>
+          <div class="table-wrap table-wrap--short">
+            <table class="data-table data-table--compact">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>תאריך</th>
+                  <th>כיוון</th>
+                  <th>סכום ₪</th>
+                  <th>הערה</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="paymentsDoronLedgerBody"></tbody>
+            </table>
+          </div>
+          <p class="empty-state payments-empty" id="paymentsDoronLedgerEmpty" hidden>אין רישומים — הוסיפו שורה ראשונה ביומן.</p>
+        </article>
+      </div>
+
+      <section class="card card--lift payments-hints">
+        <h3 class="section-label">איך לקרוא את המספרים</h3>
+        <ul class="how-list">
+          <li><strong>ניסים</strong> — «שילם אליי» מסוכם מול <strong>מחיר הסחורה</strong> (עלות מפעל ₪ לפי «מה הגיע»). אם הסחורה &gt; מה שנכנס — מופיע <strong>חסר לכיסוי</strong> (הוא צריך להשלים אליך). אם נכנס &gt; סחורה — נוצרת <strong>קרן לזכותו</strong>; כל «החזרה ממני» מפחיתה ממנה, ו־<strong>נותר להחזיר</strong> = מה שעדיין חייבים להחזיר לו.</li>
+          <li><strong>דורון</strong> — אותו עיקרון מול <strong>השקעה</strong> (מה שהזנת). <strong>רווח על ההשקעה</strong> = מחזור המכירות של דורון במערכת מינוס ההשקעה — זה אינדיקטור כלכלי לפעילות, לא ייעוץ משפטי לחלוקת רווחים.</li>
+        </ul>
       </section>
     </section>
 
