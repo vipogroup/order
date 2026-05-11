@@ -9,9 +9,48 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=9" />
+  <link rel="stylesheet" href="css/styles.css?v=10" />
+  <script>
+    (function () {
+      try {
+        if (sessionStorage.getItem('VIPO_GATE_OK') === '1') {
+          document.documentElement.classList.add('vipo-unlocked');
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body class="app-body">
+  <div
+    id="accessGate"
+    class="access-gate"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="accessGateTitle"
+    aria-describedby="accessGateDesc"
+  >
+    <div class="access-gate__card">
+      <p class="access-gate__brand" aria-hidden="true">V</p>
+      <h1 id="accessGateTitle" class="access-gate__title">VIPO</h1>
+      <p id="accessGateDesc" class="access-gate__desc">הזינו קוד גישה. בלי קוד אין כניסה למערכת.</p>
+      <form id="accessGateForm" class="access-gate__form" autocomplete="off">
+        <label class="access-gate__label" for="accessGatePin">קוד</label>
+        <input
+          id="accessGatePin"
+          class="access-gate__input"
+          type="password"
+          inputmode="numeric"
+          name="vipo-gate-pin"
+          autocomplete="new-password"
+          maxlength="32"
+          spellcheck="false"
+        />
+        <p id="accessGateError" class="access-gate__error" hidden></p>
+        <button type="submit" class="btn btn--primary access-gate__submit">כניסה</button>
+      </form>
+    </div>
+  </div>
+
   <header class="app-top">
     <div class="app-top__inner">
       <div class="app-top__lead">
@@ -685,7 +724,8 @@
 
   <footer class="footer">
     <span>VIPO — ניסים · דורון</span>
-    <span>אתר סטטי · GitHub Pages</span>
+    <span class="footer__mid">אתר סטטי · GitHub Pages</span>
+    <button type="button" class="footer__logout" id="accessLogoutBtn">יציאה (נעילה)</button>
   </footer>
 
   <div id="appToast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
@@ -713,21 +753,8 @@ service cloud.firestore {
   }
 }</pre>
       <p class="cloud-sync-dialog__note">
-        <strong>קוד ארגון</strong> — המנהל בוחר מילה אחת משותפת (למשל <code>vipogroup-2026</code>). מזינים <strong>את אותו קוד</strong> בכל מכשיר פעם אחת — ואז כולם רואים את אותו מלאי והזמנות.
-        קונפיג Firebase (להלן) נדרש פעם אחת למערכת — אפשר להטמיע אותו בקובץ <code>js/firebase-config.js</code> בפריסה כדי שלא יצטרכו להדביק JSON בכל טלפון.
+        הנתונים בענן נשמרים תחת מזהה מסמך קבוע. קונפיג Firebase (להלן) נדרש פעם אחת למערכת — אפשר להטמיע אותו בקובץ <code>js/firebase-config.js</code> בפריסה כדי שלא יצטרכו להדביק JSON בכל טלפון.
       </p>
-      <label class="cloud-sync-dialog__label" for="cloudSyncOrgInput">קוד ארגון (מומלץ — אותו קוד בכל המכשירים)</label>
-      <input
-        id="cloudSyncOrgInput"
-        class="cloud-sync-dialog__org-input"
-        type="text"
-        dir="ltr"
-        autocomplete="off"
-        spellcheck="false"
-        maxlength="64"
-        placeholder="למשל vipogroup-2026"
-      />
-      <p class="cloud-sync-dialog__field-hint">4–64 תווים: אותיות באנגלית, ספרות, מקף וקו תחתון. ריק = ברירת מחדל <code>main</code> (מתאים למי שכבר עבד בעבר).</p>
       <label class="cloud-sync-dialog__label" for="cloudSyncJsonInput">קונפיג Firebase (JSON) — אופציונלי אם כבר מוטמע באתר</label>
       <textarea id="cloudSyncJsonInput" class="cloud-sync-dialog__textarea" rows="8" dir="ltr" placeholder='{ "apiKey": "...", "authDomain": "...", ... }'></textarea>
       <p id="cloudSyncError" class="cloud-sync-dialog__error" hidden></p>
@@ -739,7 +766,7 @@ service cloud.firestore {
     </div>
   </dialog>
 
-  <script src="js/firebase-config.js?v=3"></script>
-  <script src="js/app.js?v=14"></script>
+  <script src="js/firebase-config.js?v=4"></script>
+  <script src="js/app.js?v=15"></script>
 </body>
 </html>

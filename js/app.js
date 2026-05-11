@@ -2,6 +2,12 @@ const STORAGE_KEY_V2 = 'vipo_inventory_state_v2';
 const STORAGE_KEY_V1 = 'vipo_inventory_sales_v1';
 const STORAGE_KEY_SAMPLES = 'vipo_samples_catalog_v1';
 
+/** כניסה לממשק — בלי קוד אין גישה (נשמר לטאב בלבד ב־sessionStorage) */
+const VIPO_ACCESS_PIN = '1985';
+const VIPO_GATE_SESSION_KEY = 'VIPO_GATE_OK';
+/** מזהה מסמך Firestore: vipo_state/{מזהה} — תואם לקוד הגישה */
+const VIPO_FIRESTORE_DOC_ID = '1985';
+
 /** סנכרון ענן (Firestore); כבוי כש־firebase-config ללא apiKey */
 let vipoApplyingRemote = false;
 const vipoCloudCtx = {
@@ -580,11 +586,7 @@ function updateVipoCloudHint() {
   if (el) {
     if (vipoCloudCtx.enabled) {
       el.hidden = false;
-      const oid = getVipoOrgDocId();
-      el.textContent =
-        oid === 'main'
-          ? 'סנכרון ענן פעיל — שינויים נשמרים לכולם'
-          : `סנכרון ענן פעיל · קוד ארגון: ${oid}`;
+      el.textContent = 'סנכרון ענן פעיל — שינויים נשמרים לכולם';
     } else {
       el.hidden = true;
       el.textContent = '';
@@ -600,33 +602,6 @@ function updateVipoCloudHint() {
 
 function getFirebaseStorageKey() {
   return window.VIPO_FIREBASE_STORAGE_KEY || 'VIPO_FIREBASE_CONFIG';
-}
-
-function getOrgDocStorageKey() {
-  return window.VIPO_ORG_DOC_STORAGE_KEY || 'VIPO_ORG_DOC_ID';
-}
-
-/** ריק = לא הוגדר (נשתמש ב־main). מחרוזת לא תקינה = false. */
-function normalizeVipoOrgDocId(raw) {
-  const s = String(raw ?? '')
-    .trim()
-    .toLowerCase();
-  if (!s) return null;
-  if (!/^[a-z0-9_-]{4,64}$/.test(s)) return false;
-  return s;
-}
-
-/** מזהה מסמך Firestore: vipo_state/{id} */
-function getVipoOrgDocId() {
-  try {
-    const stored = localStorage.getItem(getOrgDocStorageKey());
-    const n = normalizeVipoOrgDocId(stored);
-    if (n === false) return 'main';
-    if (n) return n;
-  } catch (_) {
-    /* */
-  }
-  return 'main';
 }
 
 function normalizeFirebaseWebConfig(o) {
@@ -668,18 +643,10 @@ function closeCloudSyncDialog() {
 function openCloudSyncDialog() {
   const d = document.getElementById('cloudSyncDialog');
   const ta = document.getElementById('cloudSyncJsonInput');
-  const orgInput = document.getElementById('cloudSyncOrgInput');
   const err = document.getElementById('cloudSyncError');
   if (err) {
     err.hidden = true;
     err.textContent = '';
-  }
-  if (orgInput) {
-    try {
-      orgInput.value = localStorage.getItem(getOrgDocStorageKey()) || '';
-    } catch (_) {
-      orgInput.value = '';
-    }
   }
   if (ta) {
     try {
@@ -690,8 +657,7 @@ function openCloudSyncDialog() {
     }
   }
   if (d && typeof d.showModal === 'function') d.showModal();
-  if (orgInput && !String(orgInput.value || '').trim()) orgInput.focus();
-  else ta?.focus();
+  ta?.focus();
 }
 
 function initCloudSyncDialog() {
@@ -702,7 +668,6 @@ function initCloudSyncDialog() {
   const x = document.getElementById('cloudSyncCloseX');
   const setup = document.getElementById('cloudSyncSetupBtn');
   const ta = document.getElementById('cloudSyncJsonInput');
-  const orgInput = document.getElementById('cloudSyncOrgInput');
   const err = document.getElementById('cloudSyncError');
 
   setup?.addEventListener('click', () => openCloudSyncDialog());
@@ -713,34 +678,6 @@ function initCloudSyncDialog() {
   });
 
   save?.addEventListener('click', () => {
-    const orgRaw = String(orgInput?.value || '').trim();
-    if (!orgRaw) {
-      try {
-        localStorage.removeItem(getOrgDocStorageKey());
-      } catch (_) {
-        /* */
-      }
-    } else {
-      const n = normalizeVipoOrgDocId(orgRaw);
-      if (n === false) {
-        if (err) {
-          err.hidden = false;
-          err.textContent =
-            'קוד ארגון לא תקין: 4–64 תווים, רק אותיות באנגלית קטנות, ספרות, מקף (-) וקו תחתון (_).';
-        }
-        return;
-      }
-      try {
-        localStorage.setItem(getOrgDocStorageKey(), n);
-      } catch (e) {
-        if (err) {
-          err.hidden = false;
-          err.textContent = 'שמירת הקוד בדפדפן נכשלה.';
-        }
-        return;
-      }
-    }
-
     const rawJs = String(ta?.value || '').trim();
     if (!rawJs) {
       try {
@@ -775,12 +712,70 @@ function initCloudSyncDialog() {
     if (!confirm('למחוק את הגדרת השיתוף ממכשיר זה ולחזור לשמירה מקומית בלבד?')) return;
     try {
       localStorage.removeItem(getFirebaseStorageKey());
-      localStorage.removeItem(getOrgDocStorageKey());
     } catch (_) {
       /* */
     }
     location.reload();
   });
+}
+
+function isVipoAccessUnlocked() {
+  try {
+    return sessionStorage.getItem(VIPO_GATE_SESSION_KEY) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function unlockVipoAccessUi() {
+  try {
+    sessionStorage.setItem(VIPO_GATE_SESSION_KEY, '1');
+  } catch (_) {
+    /* */
+  }
+  document.documentElement.classList.add('vipo-unlocked');
+  const gate = document.getElementById('accessGate');
+  if (gate) gate.hidden = true;
+}
+
+function initAccessGate() {
+  const gate = document.getElementById('accessGate');
+  const form = document.getElementById('accessGateForm');
+  const input = document.getElementById('accessGatePin');
+  const errEl = document.getElementById('accessGateError');
+
+  if (!gate || !form) {
+    init().catch(e => console.error(e));
+    return;
+  }
+
+  if (isVipoAccessUnlocked()) {
+    gate.hidden = true;
+    init().catch(e => console.error(e));
+    return;
+  }
+
+  gate.hidden = false;
+  form.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const v = String(input?.value || '').trim();
+    if (errEl) {
+      errEl.hidden = true;
+      errEl.textContent = '';
+    }
+    if (v === VIPO_ACCESS_PIN) {
+      unlockVipoAccessUi();
+      init().catch(e => console.error(e));
+    } else {
+      if (errEl) {
+        errEl.hidden = false;
+        errEl.textContent = 'קוד שגוי.';
+      }
+      if (input) input.value = '';
+      input?.focus();
+    }
+  });
+  queueMicrotask(() => input?.focus());
 }
 
 async function initVipoCloudSync() {
@@ -799,7 +794,7 @@ async function initVipoCloudSync() {
     const db = firebase.firestore();
     vipoCloudCtx.enabled = true;
     vipoCloudCtx.db = db;
-    vipoCloudCtx.docRef = db.collection('vipo_state').doc(getVipoOrgDocId());
+    vipoCloudCtx.docRef = db.collection('vipo_state').doc(VIPO_FIRESTORE_DOC_ID);
 
     const snap = await vipoCloudCtx.docRef.get();
     if (snap.exists) {
@@ -2112,7 +2107,11 @@ function initNavigation() {
   });
 }
 
+let vipoAppInitDone = false;
+
 async function init() {
+  if (vipoAppInitDone) return;
+  vipoAppInitDone = true;
   const state = loadState();
   sales = state.sales;
   orders = state.orders;
@@ -2180,6 +2179,17 @@ async function init() {
     if (!btn) return;
     const sid = btn.getAttribute('data-sample-id');
     if (sid) deleteSampleRow(sid);
+  });
+
+  document.getElementById('accessLogoutBtn')?.addEventListener('click', () => {
+    if (!confirm('לנעול את המערכת בטאב זה? יידרש קוד שוב.')) return;
+    try {
+      sessionStorage.removeItem(VIPO_GATE_SESSION_KEY);
+    } catch (_) {
+      /* */
+    }
+    document.documentElement.classList.remove('vipo-unlocked');
+    location.reload();
   });
 
   els.printReportBtn.addEventListener('click', () => window.print());
@@ -2269,4 +2279,4 @@ async function init() {
   renderAll();
 }
 
-init().catch(err => console.error(err));
+initAccessGate();
