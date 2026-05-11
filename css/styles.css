@@ -312,6 +312,28 @@ button { cursor: pointer; }
   color: var(--ink-soft);
   line-height: 1.55;
 }
+.cloud-sync-dialog__explain {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--nissim-bg);
+  border: 1px solid var(--nissim-border);
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.cloud-sync-dialog__explain p {
+  margin: 0 0 10px;
+}
+.cloud-sync-dialog__explain p:last-child {
+  margin-bottom: 0;
+}
+.cloud-sync-dialog__explain code {
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.75);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
 .cloud-sync-dialog__steps {
   margin: 0 0 12px;
   padding-inline-start: 22px;
