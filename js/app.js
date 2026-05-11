@@ -540,7 +540,7 @@ function applyVipoCloudDocument(data) {
       console.error(e);
     }
     syncPaymentsFormInputs();
-    renderAll();
+  renderAll();
   } finally {
     vipoApplyingRemote = false;
   }
@@ -580,13 +580,40 @@ function scheduleVipoCloudPush() {
   }, 600);
 }
 
+/** דחיפה מיידית לפני סגירת טאב/רקע — שלא יאבדו שינויים לפני ה־debounce */
+function flushVipoCloudPushNow() {
+  if (!vipoCloudCtx.enabled || !vipoCloudCtx.docRef || vipoApplyingRemote) return;
+  clearTimeout(vipoCloudCtx.pushTimer);
+  vipoCloudCtx.pushTimer = null;
+  vipoCloudCtx.lastLocalPushAt = Date.now();
+  vipoCloudCtx.docRef.set(getVipoCloudDocumentPayload()).catch(e => {
+    console.error(e);
+  });
+}
+
+function wireVipoCloudFlushOnHide() {
+  const run = () => {
+    if (document.visibilityState !== 'hidden') return;
+    flushVipoCloudPushNow();
+  };
+  document.addEventListener('visibilitychange', run);
+  window.addEventListener('pagehide', () => flushVipoCloudPushNow());
+}
+
+function updateLocalOnlyBanner() {
+  const b = document.getElementById('localOnlyBanner');
+  if (!b) return;
+  b.hidden = !!vipoCloudCtx.enabled;
+}
+
 function updateVipoCloudHint() {
   const el = document.getElementById('vipoCloudHint');
   const setupBtn = document.getElementById('cloudSyncSetupBtn');
   if (el) {
     if (vipoCloudCtx.enabled) {
       el.hidden = false;
-      el.textContent = 'סנכרון ענן פעיל — שינויים נשמרים לכולם';
+      el.textContent =
+        'סנכרון ענן פעיל — כל שינוי נשמר בענן ומתעדכן בטלפונים אחרים (אחרי קוד 1985 ואותו Firebase)';
     } else {
       el.hidden = true;
       el.textContent = '';
@@ -598,6 +625,7 @@ function updateVipoCloudHint() {
       ? 'ניהול שיתוף נתונים'
       : 'שיתוף נתונים בין מכשירים (הפעלה)';
   }
+  updateLocalOnlyBanner();
 }
 
 function getFirebaseStorageKey() {
@@ -671,6 +699,7 @@ function initCloudSyncDialog() {
   const err = document.getElementById('cloudSyncError');
 
   setup?.addEventListener('click', () => openCloudSyncDialog());
+  document.getElementById('localOnlyOpenSyncBtn')?.addEventListener('click', () => openCloudSyncDialog());
   x?.addEventListener('click', () => closeCloudSyncDialog());
   cancel?.addEventListener('click', () => closeCloudSyncDialog());
   d?.addEventListener('click', ev => {
@@ -1313,7 +1342,7 @@ function renderSalesTable() {
       const item = getItem(sale.itemId) || {};
       const biz = item.business;
       const badge = biz === 'doron' ? 'badge--doron' : 'badge--nissim';
-      const total = Number(sale.qty || 0) * Number(sale.unitPrice || 0);
+    const total = Number(sale.qty || 0) * Number(sale.unitPrice || 0);
       const isFirst = j === 0;
       const bundlePill = isMulti && isFirst
         ? ' <span class="sale-bundle-pill" title="מכירה אחת עם כמה מוצרים">מרובה</span>'
@@ -1483,7 +1512,7 @@ function fulfillOrder(orderId) {
   const fulfillDate = fulfillCreated.slice(0, 10);
   for (let li = o.lines.length - 1; li >= 0; li--) {
     const line = o.lines[li];
-    sales.unshift({
+  sales.unshift({
       id: newId(),
       date: fulfillDate,
       itemId: line.itemId,
@@ -2128,6 +2157,7 @@ async function init() {
 
   initNavigation();
   initLayoutRecovery();
+  wireVipoCloudFlushOnHide();
 
   let startPanel = 'dashboard';
   try {

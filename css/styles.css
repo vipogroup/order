@@ -228,6 +228,36 @@ button { cursor: pointer; }
   outline-offset: 2px;
 }
 
+/* ——— אזהרה: אין Firebase — נתונים מקומיים בלבד ——— */
+.local-only-banner {
+  background: linear-gradient(90deg, #fff4e5 0%, #fde8d4 100%);
+  border-bottom: 1px solid var(--doron-border);
+}
+.local-only-banner__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 12px clamp(12px, 3vw, 28px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+.local-only-banner__text {
+  margin: 0;
+  flex: 1 1 220px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.local-only-banner__text code {
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
 /* ——— Cloud sync setup dialog ——— */
 .cloud-sync-dialog {
   border: none;

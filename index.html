@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=10" />
+  <link rel="stylesheet" href="css/styles.css?v=11" />
   <script>
     (function () {
       try {
@@ -49,7 +49,7 @@
         <button type="submit" class="btn btn--primary access-gate__submit">כניסה</button>
       </form>
     </div>
-  </div>
+      </div>
 
   <header class="app-top">
     <div class="app-top__inner">
@@ -61,7 +61,7 @@
           <button type="button" id="cloudSyncSetupBtn" class="app-top__sync-btn">
             שיתוף נתונים בין מכשירים (הפעלה)
           </button>
-        </div>
+      </div>
       </div>
       <div class="app-top__actions">
         <button type="button" class="btn btn--small btn--primary" id="printReportBtn">הדפס דוח</button>
@@ -71,6 +71,16 @@
       </div>
     </div>
   </header>
+
+  <div id="localOnlyBanner" class="local-only-banner" role="status" hidden>
+    <div class="local-only-banner__inner">
+      <p class="local-only-banner__text">
+        <strong>אין חיבור לענן.</strong> השינויים נשמרים רק במכשיר הזה — בטלפון אחר (אחרי קוד 1985) לא יופיעו אותם נתונים.
+        להפעלת שיתוף: אותו קונפיג Firebase בכל מכשיר, או מילוי <code>js/firebase-config.js</code> באתר שמפרסמים.
+      </p>
+      <button type="button" class="btn btn--small btn--primary" id="localOnlyOpenSyncBtn">הגדרת שיתוף לענן</button>
+    </div>
+  </div>
 
   <div class="app-nav-wrap">
     <div class="app-nav-scroll">
@@ -112,7 +122,7 @@
             <button type="button" class="btn btn--small" data-go-panel="payments">תשלומים</button>
             <button type="button" class="btn btn--small btn--ghost-dark" data-go-panel="orders">הזמנה חדשה</button>
           </div>
-        </article>
+      </article>
         <article class="card card--doron">
           <div class="card__head">
             <h2 class="card__title">דורון</h2>
@@ -133,7 +143,7 @@
             <button type="button" class="btn btn--small" data-go-panel="payments">תשלומים</button>
             <button type="button" class="btn btn--small btn--ghost-dark" data-go-panel="sales">יומן מכירות</button>
           </div>
-        </article>
+      </article>
         <article class="card card--wide card--summary">
           <h2 class="card__title">סיכום כולל</h2>
           <dl class="stat-dl stat-dl--inline">
@@ -146,7 +156,7 @@
             <div><dt>מחזור ₪</dt><dd id="statRevenue">₪0</dd></div>
             <div><dt>הזמנות פתוחות</dt><dd id="statOpenOrders">0</dd></div>
           </dl>
-        </article>
+      </article>
       </div>
       <section class="card note-card">
         <h2 class="note-card__title">איך זה עובד</h2>
@@ -162,7 +172,7 @@
           <summary>תמונת מקור — הזמנה (ניסים)</summary>
           <img class="source-image" src="assets/order-father.jpeg" alt="תמונת מקור הזמנה" width="920" />
         </details>
-      </section>
+    </section>
     </section>
 
     <section class="panel" id="panel-nissim" data-panel-id="nissim" hidden>
@@ -184,23 +194,23 @@
         <div class="layout-split__main">
           <div class="table-wrap table-wrap--tall">
             <table class="data-table data-table--wrap-product">
-              <thead>
-                <tr>
-                  <th>#</th>
+          <thead>
+            <tr>
+              <th>#</th>
                   <th>מוצר</th>
-                  <th>שם מקורי</th>
-                  <th>מידה</th>
+              <th>שם מקורי</th>
+              <th>מידה</th>
                   <th>הוזמן</th>
                   <th>הגיע</th>
-                  <th>נמכר</th>
+              <th>נמכר</th>
                   <th>נותר אצלי</th>
                   <th>חוסר מההזמנה</th>
                   <th>מחיר $</th>
                   <th>עלות $</th>
-                </tr>
-              </thead>
+            </tr>
+          </thead>
               <tbody id="inventoryBodyNissim"></tbody>
-            </table>
+        </table>
           </div>
         </div>
         <aside class="layout-split__aside">
@@ -233,7 +243,7 @@
 
     <section class="panel" id="panel-doron" data-panel-id="doron" hidden>
       <div class="panel-head">
-        <div>
+          <div>
           <p class="eyebrow eyebrow--doron">דורון</p>
           <h2 class="panel-title">לפי ההזמנה</h2>
           <p class="panel-head__sub">מידה <strong>80×90×70</strong> · 78 בהזמנה · מכירות מהמלאי שבאמת אצלך</p>
@@ -278,23 +288,23 @@
               <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
               <label class="full">סטטוס תשלום
                 <select class="js-sale-status">
-                  <option value="שולם">שולם</option>
-                  <option value="חלקי">חלקי</option>
-                  <option value="לא שולם">לא שולם</option>
-                  <option value="בהמתנה">בהמתנה</option>
-                </select>
-              </label>
+              <option value="שולם">שולם</option>
+              <option value="חלקי">חלקי</option>
+              <option value="לא שולם">לא שולם</option>
+              <option value="בהמתנה">בהמתנה</option>
+            </select>
+          </label>
               <label class="full">הערות <textarea class="js-sale-notes" rows="2"></textarea></label>
               <button type="submit" class="btn btn--primary btn--doron-cta full">שמור מכירה</button>
-            </form>
+        </form>
           </section>
         </aside>
       </div>
-    </section>
+      </section>
 
     <section class="panel" id="panel-received" data-panel-id="received" hidden>
       <div class="panel-head">
-        <div>
+          <div>
           <p class="eyebrow eyebrow--ink">מלאי אמיתי</p>
           <h2 class="panel-title">מה הגיע בפועל אצלך</h2>
           <p class="panel-head__sub">עדכנו כמויות שהגיעו בפועל (למשל אחרי ספירה במאי). עד שלא שומרים כאן — המערכת מניחה שהגיע <strong>בדיוק</strong> כמו בהזמנה. מכירות מורידות מ־«מה הגיע», לא מההזמנה.</p>
@@ -680,9 +690,9 @@
               </tr>
             </thead>
             <tbody id="salesBody"></tbody>
-          </table>
-        </div>
-        <p class="empty-state" id="emptySalesState">עדיין לא הוזנו מכירות.</p>
+        </table>
+      </div>
+      <p class="empty-state" id="emptySalesState">עדיין לא הוזנו מכירות.</p>
       </section>
     </section>
 
@@ -767,6 +777,6 @@ service cloud.firestore {
   </dialog>
 
   <script src="js/firebase-config.js?v=4"></script>
-  <script src="js/app.js?v=15"></script>
+  <script src="js/app.js?v=16"></script>
 </body>
 </html>
