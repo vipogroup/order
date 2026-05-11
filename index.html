@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=12" />
+  <link rel="stylesheet" href="css/styles.css?v=13" />
   <script>
     (function () {
       try {
@@ -49,7 +49,7 @@
         <button type="submit" class="btn btn--primary access-gate__submit">כניסה</button>
       </form>
     </div>
-      </div>
+  </div>
 
   <header class="app-top">
     <div class="app-top__inner">
@@ -57,11 +57,15 @@
         <span class="brand-mark" aria-hidden="true">V</span>
         <div class="app-top__title-block">
           <h1 class="app-top__title">VIPO <span class="app-top__title-muted">· מלאי והזמנות</span></h1>
+          <div id="vipoSyncBar" class="vipo-sync-bar vipo-sync-bar--init" role="status" aria-live="polite">
+            <span class="vipo-sync-bar__dot" aria-hidden="true"></span>
+            <span id="vipoSyncBarText" class="vipo-sync-bar__text">בודק חיבור…</span>
+          </div>
           <span id="vipoCloudHint" class="app-top__cloud-hint" hidden></span>
           <button type="button" id="cloudSyncSetupBtn" class="app-top__sync-btn">
             שיתוף נתונים בין מכשירים (הפעלה)
           </button>
-      </div>
+        </div>
       </div>
       <div class="app-top__actions">
         <button type="button" class="btn btn--small btn--primary" id="printReportBtn">הדפס דוח</button>
@@ -756,13 +760,20 @@
         <li>נכנסים ל־<a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">Firebase Console</a> → יוצרים פרויקט.</li>
         <li>בוחרים <strong>Firestore Database</strong> → יוצרים מסד (Production או Test).</li>
         <li>גלגל השיניים → <strong>Project settings</strong> → בוחרים אפליקציית Web → מעתיקים את בלוק ה־<code>firebaseConfig</code> (אובייקט JSON).</li>
-        <li>ב־Firestore → <strong>Rules</strong> — מדביקים (לצוות פנימי בלבד; לא לפרסום רחוב):</li>
+        <li><strong>Authentication</strong> → Sign-in method → הפעילו <strong>Anonymous</strong> (חובה ל־Rules החדשות).</li>
+        <li>ב־Firestore → <strong>Rules</strong> — העתיקו מקובץ <code>firestore.rules</code> בשורש הפרויקט (לא פתוח לכולם).</li>
       </ol>
       <pre class="cloud-sync-dialog__rules" dir="ltr">rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /vipo_state/{doc} {
-      allow read, write: if true;
+    match /vipo_state/{docId} {
+      allow read: if request.auth != null &amp;&amp; docId == '1985';
+      allow create, update: if request.auth != null
+        &amp;&amp; docId == '1985'
+        &amp;&amp; request.resource.data.keys().hasAll(['version', 'savedAt'])
+        &amp;&amp; request.resource.data.version is int
+        &amp;&amp; request.resource.data.savedAt is string;
+      allow delete: if false;
     }
   }
 }</pre>
@@ -780,7 +791,7 @@ service cloud.firestore {
     </div>
   </dialog>
 
-  <script src="js/firebase-config.js?v=5"></script>
-  <script src="js/app.js?v=17"></script>
+  <script src="js/firebase-config.js?v=6"></script>
+  <script src="js/app.js?v=18"></script>
 </body>
 </html>

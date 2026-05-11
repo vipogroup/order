@@ -16,8 +16,16 @@ const vipoCloudCtx = {
   unsub: null,
   db: null,
   docRef: null,
-  lastLocalPushAt: 0
+  lastLocalPushAt: 0,
+  pendingWhileOffline: false
 };
+
+/** debounce לדחיפה לענן (0 = מיידי אחרי אותו tick) */
+const VIPO_CLOUD_PUSH_DEBOUNCE_MS = 0;
+
+let vipoSyncUiState = 'init';
+let vipoSyncSavedTimer = null;
+let vipoOfflineToastShown = false;
 const LEGACY_DORON_ID = 'doron-table-180x90x70';
 const DORON_ID = 'doron-table-80x90x70';
 const LAST_PANEL_KEY = 'vipo_last_panel';
@@ -471,7 +479,12 @@ function saveState() {
     receivedByItemId,
     payments
   };
-  localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(payload));
+  /** מטמון מקומי + גיבוי; כשהענן פעיל — Firestore הוא מקור האמת בין מכשירים */
+  try {
+    localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(payload));
+  } catch (e) {
+    console.error(e);
+  }
   scheduleVipoCloudPush();
 }
 
@@ -540,7 +553,7 @@ function applyVipoCloudDocument(data) {
       console.error(e);
     }
     syncPaymentsFormInputs();
-  renderAll();
+    renderAll();
   } finally {
     vipoApplyingRemote = false;
   }
@@ -559,36 +572,88 @@ function loadFirebaseCompatScripts() {
         document.head.appendChild(s);
       });
     one('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js')
+      .then(() => one('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js'))
       .then(() => one('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'))
       .then(() => resolve())
       .catch(reject);
   });
 }
 
+function setVipoSyncState(next, customText) {
+  vipoSyncUiState = next;
+  const bar = document.getElementById('vipoSyncBar');
+  const txt = document.getElementById('vipoSyncBarText');
+  if (!bar || !txt) return;
+  bar.hidden = false;
+  bar.className = 'vipo-sync-bar vipo-sync-bar--' + next;
+  const labels = {
+    init: 'בודק חיבור…',
+    no_config: 'אין חיבור לענן — נדרש Firebase',
+    connecting: 'מתחבר לענן…',
+    connected: 'מחובר לענן',
+    syncing: 'מסנכרן…',
+    saved: 'נשמר בענן',
+    offline: 'אין אינטרנט — נשמר מקומית, יסונכרן בחזרה',
+    error: 'שגיאת סנכרון',
+    local_only: 'מקומי בלבד (ללא ענן)'
+  };
+  txt.textContent = customText || labels[next] || next;
+}
+
+async function ensureFirebaseAnonymousAuth() {
+  if (typeof firebase === 'undefined' || !firebase.auth) {
+    throw new Error('firebase-auth-missing');
+  }
+  const auth = firebase.auth();
+  if (!auth.currentUser) {
+    await auth.signInAnonymously();
+  }
+}
+
+async function runVipoCloudPush() {
+  if (!vipoCloudCtx.enabled || !vipoCloudCtx.docRef || vipoApplyingRemote) return;
+  if (!navigator.onLine) {
+    vipoCloudCtx.pendingWhileOffline = true;
+    setVipoSyncState('offline');
+    if (!vipoOfflineToastShown) {
+      vipoOfflineToastShown = true;
+      showToast('אין אינטרנט — השינויים נשמרים במכשיר ויסונכרנו לענן כשיחזור החיבור.', 5200);
+    }
+    return;
+  }
+  vipoOfflineToastShown = false;
+  vipoCloudCtx.lastLocalPushAt = Date.now();
+  setVipoSyncState('syncing');
+  try {
+    await vipoCloudCtx.docRef.set(getVipoCloudDocumentPayload());
+    vipoCloudCtx.pendingWhileOffline = false;
+    setVipoSyncState('saved');
+    clearTimeout(vipoSyncSavedTimer);
+    vipoSyncSavedTimer = setTimeout(() => {
+      if (vipoSyncUiState === 'saved' && vipoCloudCtx.enabled) setVipoSyncState('connected');
+    }, 1600);
+  } catch (e) {
+    console.error(e);
+    vipoCloudCtx.pendingWhileOffline = true;
+    setVipoSyncState('error');
+    showToast('שמירה לענן נכשלה — הנתונים במטמון המקומי; ננסה שוב כשיהיה חיבור.', 5200);
+  }
+}
+
 function scheduleVipoCloudPush() {
   if (!vipoCloudCtx.enabled || vipoApplyingRemote) return;
   clearTimeout(vipoCloudCtx.pushTimer);
   vipoCloudCtx.pushTimer = setTimeout(() => {
-    if (!vipoCloudCtx.docRef || vipoApplyingRemote) return;
-    vipoCloudCtx.lastLocalPushAt = Date.now();
-    vipoCloudCtx.docRef
-      .set(getVipoCloudDocumentPayload())
-      .catch(e => {
-        console.error(e);
-        showToast('שמירה לענן נכשלה — הנתונים נשמרו רק במכשיר זה', 4200);
-      });
-  }, 600);
+    void runVipoCloudPush();
+  }, VIPO_CLOUD_PUSH_DEBOUNCE_MS);
 }
 
-/** דחיפה מיידית לפני סגירת טאב/רקע — שלא יאבדו שינויים לפני ה־debounce */
+/** דחיפה מיידית לפני סגירת טאב/רקע */
 function flushVipoCloudPushNow() {
   if (!vipoCloudCtx.enabled || !vipoCloudCtx.docRef || vipoApplyingRemote) return;
   clearTimeout(vipoCloudCtx.pushTimer);
   vipoCloudCtx.pushTimer = null;
-  vipoCloudCtx.lastLocalPushAt = Date.now();
-  vipoCloudCtx.docRef.set(getVipoCloudDocumentPayload()).catch(e => {
-    console.error(e);
-  });
+  void runVipoCloudPush();
 }
 
 function wireVipoCloudFlushOnHide() {
@@ -598,6 +663,25 @@ function wireVipoCloudFlushOnHide() {
   };
   document.addEventListener('visibilitychange', run);
   window.addEventListener('pagehide', () => flushVipoCloudPushNow());
+}
+
+function wireVipoOnlineOffline() {
+  window.addEventListener('online', () => {
+    vipoOfflineToastShown = false;
+    if (vipoCloudCtx.enabled) {
+      if (vipoCloudCtx.pendingWhileOffline) {
+        showToast('חיבור חזר — מסנכרן לענן…', 3200);
+        flushVipoCloudPushNow();
+      }
+      setVipoSyncState('connected');
+    }
+  });
+  window.addEventListener('offline', () => {
+    if (vipoCloudCtx.enabled) {
+      setVipoSyncState('offline');
+      showToast('אין אינטרנט — השינויים נשמרים במכשיר ויסונכרנו כשיחזור החיבור.', 5200);
+    }
+  });
 }
 
 function updateLocalOnlyBanner() {
@@ -612,8 +696,7 @@ function updateVipoCloudHint() {
   if (el) {
     if (vipoCloudCtx.enabled) {
       el.hidden = false;
-      el.textContent =
-        'סנכרון ענן פעיל — כל שינוי נשמר בענן ומתעדכן בטלפונים אחרים (אחרי קוד 1985 ואותו Firebase)';
+      el.textContent = 'סנכרון ענן פעיל — ראו סטטוס למעלה';
     } else {
       el.hidden = true;
       el.textContent = '';
@@ -810,20 +893,28 @@ function initAccessGate() {
 async function initVipoCloudSync() {
   const cfg = window.VIPO_FIREBASE;
   if (!cfg?.apiKey || !cfg?.projectId) {
+    vipoCloudCtx.enabled = false;
+    setVipoSyncState('no_config');
     updateVipoCloudHint();
     return;
   }
+  setVipoSyncState('connecting');
   try {
     await loadFirebaseCompatScripts();
     if (typeof firebase === 'undefined' || !firebase.initializeApp) {
+      vipoCloudCtx.enabled = false;
+      setVipoSyncState('local_only');
       updateVipoCloudHint();
       return;
     }
     if (!firebase.apps.length) firebase.initializeApp(cfg);
+
+    await ensureFirebaseAnonymousAuth();
+
     const db = firebase.firestore();
-    vipoCloudCtx.enabled = true;
     vipoCloudCtx.db = db;
     vipoCloudCtx.docRef = db.collection('vipo_state').doc(VIPO_FIRESTORE_DOC_ID);
+    vipoCloudCtx.enabled = true;
 
     const snap = await vipoCloudCtx.docRef.get();
     if (snap.exists) {
@@ -833,6 +924,9 @@ async function initVipoCloudSync() {
       if (remote && (!local || remote > local)) {
         applyVipoCloudDocument(data);
         showToast('נטענו נתונים מהענן', 2400);
+      } else if (local && remote && local > remote) {
+        vipoCloudCtx.lastLocalPushAt = Date.now();
+        await vipoCloudCtx.docRef.set(getVipoCloudDocumentPayload());
       }
     } else {
       vipoCloudCtx.lastLocalPushAt = Date.now();
@@ -850,15 +944,38 @@ async function initVipoCloudSync() {
         if (remote && (!local || remote > local)) {
           applyVipoCloudDocument(data);
           showToast('עודכנו נתונים ממכשיר אחר', 2600);
+          if (navigator.onLine) setVipoSyncState('connected');
         }
       },
-      err => console.error(err)
+      err => {
+        console.error(err);
+        setVipoSyncState('error');
+        showToast('שגיאה בקריאת הענן — בודקים שוב או עובדים במצב מקומי', 4500);
+      }
     );
+
+    if (!navigator.onLine) {
+      setVipoSyncState('offline');
+    } else {
+      setVipoSyncState('connected');
+    }
     updateVipoCloudHint();
   } catch (e) {
     console.error(e);
     vipoCloudCtx.enabled = false;
-    showToast('סנכרון ענן לא זמין — עובדים במצב מקומי', 4000);
+    vipoCloudCtx.docRef = null;
+    const msg = String(e?.message || e || '');
+    const hint =
+      msg.includes('auth/operation-not-allowed') || msg.includes('anonymous')
+        ? 'הפעילו ב־Firebase Console → Authentication → Sign-in method → Anonymous.'
+        : '';
+    setVipoSyncState('error', hint ? 'שגיאת התחברות — ' + hint : undefined);
+    showToast(
+      hint
+        ? 'סנכרון ענן: נדרש Anonymous sign-in ב־Firebase. ' + hint
+        : 'סנכרון ענן לא זמין — עובדים במצב מקומי (מטמון בדפדפן).',
+      6500
+    );
     updateVipoCloudHint();
   }
 }
@@ -2141,6 +2258,7 @@ let vipoAppInitDone = false;
 async function init() {
   if (vipoAppInitDone) return;
   vipoAppInitDone = true;
+  setVipoSyncState('init');
   const state = loadState();
   sales = state.sales;
   orders = state.orders;
@@ -2158,6 +2276,7 @@ async function init() {
   initNavigation();
   initLayoutRecovery();
   wireVipoCloudFlushOnHide();
+  wireVipoOnlineOffline();
 
   let startPanel = 'dashboard';
   try {

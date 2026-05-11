@@ -1,0 +1,17 @@
+rules_version = '2';
+// פריסה: Firebase Console → Firestore → Rules → הדבקה ופרסום.
+// דרישה: באימות Firebase → Sign-in method → הפעילו "Anonymous".
+// לא משתמשים ב-if true — רק משתמשים מחוברים (אנונימי) יכולים לגשת למסמך 1985.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /vipo_state/{docId} {
+      allow read: if request.auth != null && docId == '1985';
+      allow create, update: if request.auth != null
+        && docId == '1985'
+        && request.resource.data.keys().hasAll(['version', 'savedAt'])
+        && request.resource.data.version is int
+        && request.resource.data.savedAt is string;
+      allow delete: if false;
+    }
+  }
+}
