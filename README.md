@@ -2,6 +2,23 @@
 
 אתר HTML סטטי לניהול מלאי ומכירות.
 
+## איפה רואים את המערכת בדפדפן?
+
+**קישור לריפו ב-GitHub** (למשל `https://github.com/vipogroup/order`) מראה **רק קוד וקבצים** — לא את האפליקציה.
+
+כדי שהאתר ייפתח כמו תוכנית:
+
+1. ב-GitHub: **Settings** של הריפו → **Pages**.
+2. **Build and deployment** → Source: **Deploy from a branch**.
+3. Branch: **`main`**, Folder: **`/ (root)`** → Save.
+4. אחרי דקה–שתיים פתחו את כתובת האתר (יופיע באותו מסך), בדרך כלל:
+
+   **https://vipogroup.github.io/order/**
+
+   (שם המשתמש/ארגון + שם הריפו בנתיב.)
+
+אם הריפו **פרטי**, ייתכן ש-GitHub Pages דורש תוכנית בתשלום — אז או לפרסם ריפו ציבורי או להריץ מקומית: `python -m http.server 5000` ולפתוח `http://localhost:5000`.
+
 ## מה כלול
 
 - `index.html` — עמוד האתר הראשי.
