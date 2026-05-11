@@ -153,6 +153,8 @@ button { cursor: pointer; }
 
 /* ——— Nav ——— */
 .app-nav-wrap {
+  width: 100%;
+  max-width: 100%;
   background: var(--surface-elevated);
   border-bottom: 1px solid var(--border-strong);
   position: sticky;
@@ -161,7 +163,10 @@ button { cursor: pointer; }
   box-shadow: 0 4px 20px rgba(14, 17, 23, 0.04);
 }
 .app-nav-scroll {
+  width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
@@ -520,6 +525,81 @@ input:focus, select:focus, textarea:focus {
   .sale-form { grid-template-columns: 1fr; }
 }
 
+.sale-lines-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.sale-lines-label {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.js-sale-lines {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sale-line-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(72px, 96px) minmax(104px, 120px) 40px;
+  gap: 10px 12px;
+  align-items: end;
+  padding: 12px 12px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(14, 17, 23, 0.1);
+  background: rgba(255, 255, 255, 0.55);
+}
+.sale-line-row .js-remove-sale-line {
+  align-self: center;
+  justify-self: center;
+  min-width: 40px;
+}
+@media (max-width: 600px) {
+  .sale-line-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "prod prod"
+      "qty price"
+      "rm rm";
+  }
+  .sale-line-row .sale-line-product { grid-area: prod; }
+  .sale-line-row .sale-line-qty { grid-area: qty; }
+  .sale-line-row .sale-line-price { grid-area: price; }
+  .sale-line-row .js-remove-sale-line {
+    grid-area: rm;
+    justify-self: stretch;
+  }
+}
+
+.sale-bundle-pill {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: rgba(45, 79, 124, 0.12);
+  color: var(--accent);
+  vertical-align: middle;
+}
+.sale-bundle-join {
+  color: var(--muted);
+  font-size: 13px;
+}
+.sale-tr--bundle-continuation {
+  background: rgba(14, 17, 23, 0.025);
+}
+.sales-th-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
 .order-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -680,6 +760,25 @@ input:focus, select:focus, textarea:focus {
 .data-table tbody tr:hover { background: rgba(45, 79, 124, 0.06); }
 .data-table--orders { min-width: 920px; }
 .data-table--gaps { min-width: 960px; }
+.data-table--samples { min-width: 640px; }
+.data-table--samples td:nth-child(3) {
+  white-space: normal;
+  max-width: 220px;
+}
+tr.samples-section-head td {
+  background: rgba(45, 79, 124, 0.09);
+  color: var(--ink-soft);
+  font-weight: 800;
+  font-size: 13px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-strong);
+}
+tr.samples-row--freight {
+  background: rgba(14, 17, 23, 0.03);
+}
+tr.samples-row--freight td:nth-child(3) {
+  color: var(--muted);
+}
 
 .table-input {
   width: 100%;
@@ -1023,7 +1122,8 @@ input:focus, select:focus, textarea:focus {
   }
 
   .page-shell {
-    padding: 16px 12px max(48px, env(safe-area-inset-bottom, 0px));
+    max-width: 100%;
+    padding: 16px max(10px, env(safe-area-inset-left, 0px)) max(52px, calc(12px + env(safe-area-inset-bottom, 0px))) max(10px, env(safe-area-inset-right, 0px));
   }
 
   .card {

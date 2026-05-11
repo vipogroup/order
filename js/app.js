@@ -3,7 +3,60 @@ const STORAGE_KEY_V1 = 'vipo_inventory_sales_v1';
 const LEGACY_DORON_ID = 'doron-table-180x90x70';
 const DORON_ID = 'doron-table-80x90x70';
 const LAST_PANEL_KEY = 'vipo_last_panel';
-const VALID_PANELS = ['dashboard', 'nissim', 'doron', 'received', 'gaps', 'orders', 'sales', 'payments'];
+const VALID_PANELS = ['dashboard', 'nissim', 'doron', 'received', 'gaps', 'orders', 'sales', 'samples', 'payments'];
+
+/** localStorage: vipo_debug_layout = "1" — הדפסת אירועי layout לקונסול (סיבוב מסך / BFCache) */
+function layoutDebug(...args) {
+  try {
+    if (localStorage.getItem('vipo_debug_layout') === '1') console.log('[VIPO layout]', ...args);
+  } catch (_) { /* private mode */ }
+}
+
+function getActivePanelId() {
+  const fromNav = [...els.navBtns].find(b => b.classList.contains('is-active'))?.dataset?.panel;
+  if (fromNav && VALID_PANELS.includes(fromNav)) return fromNav;
+  try {
+    const last = sessionStorage.getItem(LAST_PANEL_KEY);
+    if (last && VALID_PANELS.includes(last)) return last;
+  } catch (_) { /* quota / private */ }
+  return 'dashboard';
+}
+
+/** אחרי סיבוב מסך / חזרה ממטמון — מסנכרן שוב פאנלים וגלילה (תיקון ידוע ב־Safari iOS) */
+function recoverLayoutAfterViewportChange(reason) {
+  const id = getActivePanelId();
+  layoutDebug(reason, { w: window.innerWidth, h: window.innerHeight, panel: id });
+  showPanel(id, { scrollMode: 'instant' });
+}
+
+function initLayoutRecovery() {
+  let lastPortrait = window.innerHeight >= window.innerWidth;
+  let resizeTimer = null;
+
+  window.addEventListener('orientationchange', () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => recoverLayoutAfterViewportChange('orientationchange'));
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const portrait = window.innerHeight >= window.innerWidth;
+      if (portrait !== lastPortrait) {
+        lastPortrait = portrait;
+        recoverLayoutAfterViewportChange('resize-portrait-toggle');
+      }
+    }, 200);
+  });
+
+  window.addEventListener('pageshow', ev => {
+    if (!ev.persisted) return;
+    layoutDebug('pageshow bfcache');
+    recoverLayoutAfterViewportChange('pageshow-bfcache');
+    renderAll();
+  });
+}
 
 const BUSINESS_LABEL = { nissim: 'ניסים', doron: 'דורון' };
 
@@ -34,6 +87,53 @@ const openingInventory = [
   { id: 'father-cabinet-150x60x90', business: 'nissim', source: 'ניסים', product: 'ארון עבודה נירוסטה', original: 'WORK CABINET', size: '150*60*90CM', qtyPerCtn: 1, ttlCtns: 2, openingQty: 2, unit: 'PC', priceUsd: 113.00, amountUsd: 226.00, cbmCtn: 0.21, ttlCbm: 0.42 },
   { id: 'father-cabinet-180x60x90', business: 'nissim', source: 'ניסים', product: 'ארון עבודה נירוסטה', original: 'WORK CABINET', size: '180*60*90CM', qtyPerCtn: 1, ttlCtns: 2, openingQty: 2, unit: 'PC', priceUsd: 93.00, amountUsd: 186.00, cbmCtn: 0.25, ttlCbm: 0.51 },
   { id: DORON_ID, business: 'doron', source: 'דורון', product: 'שולחן דורון', original: 'DORON WORKTABLE', size: '80*90*70CM', qtyPerCtn: '', ttlCtns: '', openingQty: 78, unit: 'PC', priceUsd: null, amountUsd: null, cbmCtn: null, ttlCbm: null }
+];
+
+/** דוגמאות (¥ / US$) — לא משפיע על מלאי. שלוש הזמנות: א׳ / ב׳ / ג׳ FedEx אוויר. */
+const SAMPLE_BATCH_ORDER_A = 'הזמנה א׳';
+const SAMPLE_BATCH_ORDER_B = 'הזמנה ב׳';
+const SAMPLE_BATCH_ORDER_AIR = 'הזמנה ג׳ · FedEx אוויר';
+
+const SAMPLES_CATALOG = [
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'VCT-L50S', desc: 'כורסת עיסוי לבן/זהב', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 9317, lineTotal: 9317, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'VCT-889Pro', desc: 'כורסת עיסוי לבן/אפור', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 4873, lineTotal: 4873, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'IA-6120HD', desc: 'סאונדבר', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 1638, lineTotal: 1638, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'M50', desc: 'שואב רובוטי', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 1759, lineTotal: 1759, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'SC-616DE', desc: 'מיקסר 16 ל׳', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 700, lineTotal: 700, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'SM-1576', desc: 'מיקסר 10 ל׳ אדום', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 799, lineTotal: 799, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'E1212', desc: 'סט רמקול עמוד + בס', qty: 1, unit: 'SET', currency: 'CNY', unitPrice: null, lineTotal: 2365, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'IHDWFAB2 010', desc: 'מיטה מתנפחת', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 360, lineTotal: 360, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'EC5188', desc: 'גלשן חשמלי', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 19359, lineTotal: 19359, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'Mengqi17.2', desc: 'אוהל מתנפח', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 3800, lineTotal: 3800, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'RTK2WT 1800', desc: 'שולחן נירוסטה 180×70×92', qty: 38, unit: 'PC', currency: 'USD', unitPrice: 91, lineTotal: 3458, ref: 'ME004# VC', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_A, sku: 'RTK2WT 1800', desc: 'שולחן נירוסטה 180×70×92', qty: 38, unit: 'PC', currency: 'USD', unitPrice: 91, lineTotal: 3458, ref: 'ME003# YB', kind: 'product' },
+
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'RT-WC-180', desc: 'גלגלים לשולחן', qty: 2, unit: 'PC', currency: 'USD', unitPrice: 94.5, lineTotal: 189, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'F203DH', desc: 'שואב ידני לח/יבש', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 850, lineTotal: 850, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'BVC-T20Pro', desc: 'שואב קיטור', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 1165, lineTotal: 1165, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'V501', desc: 'שואב רובוטי', qty: 2, unit: 'PC', currency: 'CNY', unitPrice: 1700, lineTotal: 3400, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'IA-8360DMAX', desc: 'סאונדבר 7.1', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 2450, lineTotal: 2450, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'TSAC-012N8B-01', desc: 'מזגן סולארי 12K BTU', qty: 1, unit: 'SET', currency: 'USD', unitPrice: 340, lineTotal: 340, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'TSAC-018N8B-01', desc: 'מזגן סולארי 18K BTU', qty: 1, unit: 'SET', currency: 'USD', unitPrice: 450, lineTotal: 450, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'TSAC-024N8B-01', desc: 'מזגן סולארי 24K BTU', qty: 1, unit: 'SET', currency: 'USD', unitPrice: 600, lineTotal: 600, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'E1212', desc: 'סט רמקול עמוד + בס', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 2315, lineTotal: 2315, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'A10', desc: 'שואב רובוטי Ultra', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 2556, lineTotal: 2556, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'DWFB-01', desc: 'מיטה מתנפחת', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 529.73, lineTotal: 529.73, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'IST-01', desc: 'שולחן מתנפח', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 529.73, lineTotal: 529.73, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'ISS-04', desc: 'ספה מתנפחת 150×76', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 211.89, lineTotal: 211.89, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'ISS-06', desc: 'ספה מתנפחת 160×90', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 494.41, lineTotal: 494.41, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'ISS-07', desc: 'ספה מתנפחת 160×90', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 353.15, lineTotal: 353.15, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'BJKL808', desc: 'מכונית על שלט כחול', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 2116.9, lineTotal: 2116.9, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'KP-6699', desc: 'מכונית על שלט לבן', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 493, lineTotal: 493, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: '9FT-PT (1+2+3)', desc: 'בריכת ביליארד 9 רגל', qty: 1, unit: 'SET', currency: 'CNY', unitPrice: 2343.5, lineTotal: 2343.5, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'SC-616DE', desc: 'מיקסר 16 ל׳ ×2 סטים', qty: 2, unit: 'SET', currency: 'CNY', unitPrice: 700, lineTotal: 1400, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'משלוח', desc: 'שולחן נירוסטה', qty: 1, unit: '—', currency: 'USD', unitPrice: null, lineTotal: 685, ref: '', kind: 'freight' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'משלוח', desc: 'סאונדבר', qty: 1, unit: '—', currency: 'CNY', unitPrice: null, lineTotal: 100, ref: '', kind: 'freight' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'משלוח', desc: 'מזגנים', qty: 1, unit: '—', currency: 'USD', unitPrice: null, lineTotal: 100, ref: '', kind: 'freight' },
+  { batch: SAMPLE_BATCH_ORDER_B, sku: 'משלוח', desc: 'רובוט A10', qty: 1, unit: '—', currency: 'CNY', unitPrice: null, lineTotal: 50, ref: '', kind: 'freight' },
+
+  { batch: SAMPLE_BATCH_ORDER_AIR, sku: 'V501', desc: 'שואב רובוטי', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 1700, lineTotal: 1700, ref: '', kind: 'product' },
+  { batch: SAMPLE_BATCH_ORDER_AIR, sku: 'FedEx', desc: 'משלוח אוויר', qty: 1, unit: '—', currency: 'CNY', unitPrice: null, lineTotal: 1595, ref: '', kind: 'freight' }
 ];
 
 let sales = [];
@@ -149,7 +249,6 @@ const els = {
   saleFormDoron: document.getElementById('saleFormDoron'),
   saleFormGlobal: document.getElementById('saleFormGlobal'),
   saleBusinessSelect: document.getElementById('saleBusinessSelect'),
-  saleItemGlobal: document.getElementById('saleItemGlobal'),
   dashNissimOpening: document.getElementById('dashNissimOpening'),
   dashNissimSold: document.getElementById('dashNissimSold'),
   dashNissimRev: document.getElementById('dashNissimRev'),
@@ -234,7 +333,10 @@ const els = {
   payDoronProfitOnInv: document.getElementById('payDoronProfitOnInv'),
   payDoronSold: document.getElementById('payDoronSold'),
   payDoronRev: document.getElementById('payDoronRev'),
-  payDoronRemaining: document.getElementById('payDoronRemaining')
+  payDoronRemaining: document.getElementById('payDoronRemaining'),
+  samplesBody: document.getElementById('samplesBody'),
+  samplesSearch: document.getElementById('samplesSearch'),
+  exportSamplesCsvBtn: document.getElementById('exportSamplesCsvBtn')
 };
 
 let toastHideTimer;
@@ -381,6 +483,16 @@ function formatUsd(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value));
 }
 
+function formatCny(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(Number(value));
+}
+
+function formatSampleMoney(currency, value) {
+  if (value === null || value === undefined || value === '') return '—';
+  return currency === 'USD' ? formatUsd(value) : formatCny(value);
+}
+
 function formatIls(value) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(Number(value || 0));
 }
@@ -411,7 +523,11 @@ function generateOrderCode() {
   return `ORD-${y}${m}${day}-${r}`;
 }
 
-function showPanel(id) {
+/**
+ * @param {string} id
+ * @param {{ scrollMode?: 'smooth' | 'instant' | 'none' }} [opts]
+ */
+function showPanel(id, opts = {}) {
   if (!VALID_PANELS.includes(id)) id = 'dashboard';
   els.panels.forEach(p => {
     const match = p.dataset.panelId === id;
@@ -427,11 +543,20 @@ function showPanel(id) {
   try {
     sessionStorage.setItem(LAST_PANEL_KEY, id);
   } catch (_) { /* quota / private */ }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  const scrollMode = opts.scrollMode ?? 'smooth';
+  if (scrollMode === 'none') return;
+  const reduceMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const behavior = scrollMode === 'smooth' && !reduceMotion ? 'smooth' : 'auto';
+  try {
+    window.scrollTo({ top: 0, left: 0, behavior });
+  } catch (_) {
+    window.scrollTo(0, 0);
+  }
 }
 
 function populateSaleSelect(selectEl, business) {
   if (!selectEl) return;
+  const prev = selectEl.value;
   selectEl.innerHTML = '';
   const items = openingInventory.filter(i => i.business === business);
   for (const item of items) {
@@ -440,6 +565,142 @@ function populateSaleSelect(selectEl, business) {
     opt.textContent = `${item.product} · ${item.size} · נותר אצלי ${getRemainingQty(item.id)}`;
     selectEl.appendChild(opt);
   }
+  if (prev && items.some(i => i.id === prev)) selectEl.value = prev;
+}
+
+function getSaleFormBusiness(form, fixedBusiness) {
+  if (fixedBusiness) return fixedBusiness;
+  return form?.querySelector('#saleBusinessSelect')?.value || '';
+}
+
+function addSaleLineRow(form, business) {
+  if (!form || !business) return;
+  const wrap = form.querySelector('.js-sale-lines');
+  if (!wrap) return;
+  const div = document.createElement('div');
+  div.className = 'sale-line-row';
+  div.innerHTML = `
+    <label class="sale-line-product">מוצר <select class="js-sale-item" required></select></label>
+    <label class="sale-line-qty">כמות <input class="js-sale-qty" type="number" min="1" step="1" value="1" required /></label>
+    <label class="sale-line-price">מחיר יח׳ ₪ <input class="js-sale-price" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
+    <button type="button" class="btn btn--small btn--muted js-remove-sale-line" title="הסר שורה">×</button>
+  `;
+  wrap.appendChild(div);
+  populateSaleSelect(div.querySelector('.js-sale-item'), business);
+}
+
+function setupSaleLineListeners(form, fixedBusiness) {
+  if (!form) return;
+  const addBtn = form.querySelector('.js-add-sale-line');
+  if (addBtn && !addBtn.dataset.bound) {
+    addBtn.dataset.bound = '1';
+    addBtn.addEventListener('click', e => {
+      e.preventDefault();
+      const biz = getSaleFormBusiness(form, fixedBusiness);
+      if (!biz) {
+        alert('בחרו עסק.');
+        return;
+      }
+      addSaleLineRow(form, biz);
+    });
+  }
+  if (!form.dataset.saleLineClickBound) {
+    form.dataset.saleLineClickBound = '1';
+    form.addEventListener('click', e => {
+      if (!e.target.closest('.js-remove-sale-line')) return;
+      e.preventDefault();
+      const wrap = form.querySelector('.js-sale-lines');
+      if (!wrap || wrap.querySelectorAll('.sale-line-row').length <= 1) {
+        alert('נדרשת לפחות שורת מוצר אחת.');
+        return;
+      }
+      e.target.closest('.sale-line-row')?.remove();
+    });
+  }
+}
+
+function repopulateAllSaleFormLineSelects() {
+  [els.saleFormNissim, els.saleFormDoron, els.saleFormGlobal].forEach(form => {
+    if (!form) return;
+    const biz = getSaleFormBusiness(form, form.id === 'saleFormNissim' ? 'nissim' : form.id === 'saleFormDoron' ? 'doron' : null);
+    if (!biz) return;
+    form.querySelectorAll('.js-sale-lines .js-sale-item').forEach(sel => populateSaleSelect(sel, biz));
+  });
+}
+
+function readSharedSaleMeta(form) {
+  return {
+    date: form.querySelector('.js-sale-date')?.value,
+    customer: form.querySelector('.js-sale-customer')?.value?.trim() || '',
+    status: form.querySelector('.js-sale-status')?.value || 'שולם',
+    notes: form.querySelector('.js-sale-notes')?.value?.trim() || ''
+  };
+}
+
+function readSaleLineRows(form) {
+  const lines = [];
+  const rows = form.querySelectorAll('.js-sale-lines .sale-line-row');
+  for (const row of rows) {
+    const itemId = row.querySelector('.js-sale-item')?.value;
+    const qty = Number(row.querySelector('.js-sale-qty')?.value);
+    const unitPrice = Number(row.querySelector('.js-sale-price')?.value || 0);
+    if (!itemId) continue;
+    if (!Number.isInteger(qty) || qty <= 0) return { error: 'בכל שורה עם מוצר יש להזין כמות שלמה חיובית.' };
+    lines.push({ itemId, qty, unitPrice });
+  }
+  if (!lines.length) return { error: 'הוסיפו לפחות מוצר אחד עם כמות.' };
+  return { lines };
+}
+
+function validateLinesAgainstStock(business, lines) {
+  const need = {};
+  for (const l of lines) {
+    need[l.itemId] = (need[l.itemId] || 0) + l.qty;
+  }
+  for (const itemId of Object.keys(need)) {
+    const it = getItem(itemId);
+    if (!it || it.business !== business) return 'מוצר לא תואם לעסק שנבחר.';
+    const rem = getRemainingQty(itemId);
+    if (need[itemId] > rem) {
+      return `אין מספיק במלאי עבור «${it.product}». נדרש ${need[itemId]}, נותר ${rem}.`;
+    }
+  }
+  return '';
+}
+
+function resetSaleFormAfterSubmit(form, business) {
+  const cust = form.querySelector('.js-sale-customer');
+  if (cust) cust.value = '';
+  const notes = form.querySelector('.js-sale-notes');
+  if (notes) notes.value = '';
+  const statusSel = form.querySelector('.js-sale-status');
+  if (statusSel) statusSel.selectedIndex = 0;
+  const wrap = form.querySelector('.js-sale-lines');
+  if (wrap) {
+    wrap.innerHTML = '';
+    addSaleLineRow(form, business);
+  }
+  setSaleFormDates(form);
+}
+
+function chunkSalesByGroup(list) {
+  const chunks = [];
+  let i = 0;
+  while (i < list.length) {
+    const gid = list[i].saleGroupId;
+    if (gid) {
+      const row = [];
+      while (i < list.length && list[i].saleGroupId === gid) {
+        row.push(list[i]);
+        i++;
+      }
+      chunks.push(row);
+    } else {
+      chunks.push([list[i]]);
+      i++;
+    }
+  }
+  return chunks;
 }
 
 function setSaleFormDates(form) {
@@ -458,57 +719,45 @@ function bindSaleForm(form, fixedBusiness) {
   });
 }
 
-function readSaleFields(form) {
-  return {
-    date: form.querySelector('.js-sale-date')?.value,
-    itemId: form.querySelector('.js-sale-item')?.value,
-    qty: Number(form.querySelector('.js-sale-qty')?.value),
-    unitPrice: Number(form.querySelector('.js-sale-price')?.value || 0),
-    customer: form.querySelector('.js-sale-customer')?.value?.trim() || '',
-    status: form.querySelector('.js-sale-status')?.value || 'שולם',
-    notes: form.querySelector('.js-sale-notes')?.value?.trim() || ''
-  };
-}
-
 function addSaleFromForm(form, business) {
-  const f = readSaleFields(form);
-  const item = getItem(f.itemId);
-  if (!item || item.business !== business) {
-    alert('בחרו מוצר תקין לעסק שנבחר.');
+  const biz = business || getSaleFormBusiness(form, null);
+  if (!biz) {
+    alert('בחרו עסק.');
     return;
   }
-  const remaining = getRemainingQty(f.itemId);
-  if (!Number.isInteger(f.qty) || f.qty <= 0) {
-    alert('יש להזין כמות שלמה חיובית.');
+  const parsed = readSaleLineRows(form);
+  if (parsed.error) {
+    alert(parsed.error);
     return;
   }
-  if (f.qty > remaining) {
-    alert(`אין מספיק במלאי. נותרו ${remaining}.`);
+  const stockErr = validateLinesAgainstStock(biz, parsed.lines);
+  if (stockErr) {
+    alert(stockErr);
     return;
   }
-  sales.unshift({
+  const meta = readSharedSaleMeta(form);
+  const createdAt = new Date().toISOString();
+  const groupId = parsed.lines.length > 1 ? newId() : null;
+  const batch = parsed.lines.map((line, idx) => ({
     id: newId(),
-    date: f.date,
-    itemId: f.itemId,
-    qty: f.qty,
-    unitPrice: f.unitPrice,
-    customer: f.customer,
-    status: f.status,
-    notes: f.notes,
-    createdAt: new Date().toISOString()
-  });
+    date: meta.date,
+    itemId: line.itemId,
+    qty: line.qty,
+    unitPrice: line.unitPrice,
+    customer: meta.customer,
+    status: meta.status,
+    notes: meta.notes,
+    createdAt,
+    saleGroupId: groupId,
+    lineInGroup: groupId ? idx : undefined
+  }));
+  for (let i = batch.length - 1; i >= 0; i--) sales.unshift(batch[i]);
   saveState();
-  form.reset();
-  setSaleFormDates(form);
-  const qtyInput = form.querySelector('.js-sale-qty');
-  if (qtyInput) qtyInput.value = '1';
-  if (form.id === 'saleFormGlobal' && els.saleBusinessSelect) {
-    populateSaleSelect(els.saleItemGlobal, els.saleBusinessSelect.value);
-  }
+  resetSaleFormAfterSubmit(form, biz);
   renderAll();
-  showToast('המכירה נשמרה והמלאי עודכן');
-  const itemSel = form.querySelector('.js-sale-item');
-  if (itemSel) requestAnimationFrame(() => itemSel.focus());
+  showToast(parsed.lines.length > 1 ? `נשמרה מכירה עם ${parsed.lines.length} מוצרים` : 'המכירה נשמרה והמלאי עודכן');
+  const firstSel = form.querySelector('.js-sale-lines .js-sale-item');
+  if (firstSel) requestAnimationFrame(() => firstSel.focus());
 }
 
 function renderDashboard() {
@@ -623,32 +872,61 @@ function renderSalesTable() {
     return !q || hay.includes(q);
   });
   els.emptySalesState.style.display = sales.length ? 'none' : 'block';
-  els.salesBody.innerHTML = list.map((sale, idx) => {
-    const item = getItem(sale.itemId) || {};
-    const biz = item.business;
-    const badge = biz === 'doron' ? 'badge--doron' : 'badge--nissim';
-    const total = Number(sale.qty || 0) * Number(sale.unitPrice || 0);
-    return `
-      <tr>
-        <td>${idx + 1}</td>
-        <td>${escapeHtml(sale.date)}</td>
-        <td><span class="badge ${badge}">${escapeHtml(BUSINESS_LABEL[biz] || '')}</span></td>
+  let displayIndex = 0;
+  const rowsHtml = [];
+  for (const chunk of chunkSalesByGroup(list)) {
+    displayIndex += 1;
+    const isMulti = chunk.length > 1;
+    chunk.forEach((sale, j) => {
+      const item = getItem(sale.itemId) || {};
+      const biz = item.business;
+      const badge = biz === 'doron' ? 'badge--doron' : 'badge--nissim';
+      const total = Number(sale.qty || 0) * Number(sale.unitPrice || 0);
+      const isFirst = j === 0;
+      const bundlePill = isMulti && isFirst
+        ? ' <span class="sale-bundle-pill" title="מכירה אחת עם כמה מוצרים">מרובה</span>'
+        : '';
+      const dateCell = isFirst ? escapeHtml(sale.date) : '<span class="sale-bundle-join" aria-hidden="true">↳</span>';
+      const bizCell = isFirst ? `<span class="badge ${badge}">${escapeHtml(BUSINESS_LABEL[biz] || '')}</span>` : '';
+      const custCell = isFirst ? escapeHtml(sale.customer || '—') : '';
+      const statCell = isFirst ? escapeHtml(sale.status || '—') : '';
+      const notesCell = isFirst ? escapeHtml(sale.notes || '—') : '';
+      const delBtn = isFirst
+        ? `<button type="button" class="btn btn--small btn--danger" onclick="deleteSale('${escapeHtml(sale.id)}')">מחק</button>`
+        : '';
+      const idxCell = isFirst ? `${String(displayIndex)}${bundlePill}` : '';
+      const trClass = isMulti ? (isFirst ? 'sale-tr--bundle-start' : 'sale-tr--bundle-continuation') : '';
+      rowsHtml.push(`
+      <tr class="${trClass}">
+        <td>${idxCell}</td>
+        <td>${dateCell}</td>
+        <td>${bizCell}</td>
         <td>${escapeHtml(item.product || '')}</td>
         <td><strong>${escapeHtml(item.size || '')}</strong></td>
         <td>${Number(sale.qty || 0)}</td>
         <td>${sale.unitPrice ? formatIls(sale.unitPrice) : '—'}</td>
         <td>${sale.unitPrice ? formatIls(total) : '—'}</td>
-        <td>${escapeHtml(sale.customer || '—')}</td>
-        <td>${escapeHtml(sale.status || '—')}</td>
-        <td>${escapeHtml(sale.notes || '—')}</td>
-        <td><button type="button" class="btn btn--small btn--danger" onclick="deleteSale('${sale.id}')">מחק</button></td>
-      </tr>`;
-  }).join('');
+        <td>${custCell}</td>
+        <td>${statCell}</td>
+        <td>${notesCell}</td>
+        <td>${delBtn}</td>
+      </tr>`);
+    });
+  }
+  els.salesBody.innerHTML = rowsHtml.join('');
 }
 
 function deleteSale(id) {
-  if (!confirm('למחוק מכירה? הכמות תוחזר למלאי.')) return;
-  sales = sales.filter(s => s.id !== id);
+  const sale = sales.find(s => s.id === id);
+  if (!sale) return;
+  if (sale.saleGroupId) {
+    const grp = sales.filter(s => s.saleGroupId === sale.saleGroupId);
+    if (!confirm(`למחוק את כל השורות במכירה (${grp.length} מוצרים)? הכמויות יוחזרו למלאי.`)) return;
+    sales = sales.filter(s => s.saleGroupId !== sale.saleGroupId);
+  } else {
+    if (!confirm('למחוק מכירה? הכמות תוחזר למלאי.')) return;
+    sales = sales.filter(s => s.id !== id);
+  }
   saveState();
   renderAll();
   showToast('המכירה נמחקה — המלאי עודכן');
@@ -768,18 +1046,24 @@ function fulfillOrder(orderId) {
     return;
   }
   const notePrefix = `אספקה להזמנה ${o.code}`;
-  for (const line of o.lines) {
+  const fulfillGroupId = newId();
+  const fulfillCreated = new Date().toISOString();
+  const fulfillDate = fulfillCreated.slice(0, 10);
+  for (let li = o.lines.length - 1; li >= 0; li--) {
+    const line = o.lines[li];
     sales.unshift({
       id: newId(),
-      date: new Date().toISOString().slice(0, 10),
+      date: fulfillDate,
       itemId: line.itemId,
       qty: Number(line.qty),
       unitPrice: 0,
       customer: o.customer,
       status: 'בהמתנה',
       notes: `${notePrefix} · ${o.phone || ''}`.trim(),
-      createdAt: new Date().toISOString(),
-      relatedOrderId: o.id
+      createdAt: fulfillCreated,
+      relatedOrderId: o.id,
+      saleGroupId: fulfillGroupId,
+      lineInGroup: li
     });
   }
   o.status = 'הושלם';
@@ -1028,7 +1312,7 @@ function saveReceivedFromForm() {
 
 function buildSalesCsvRows() {
   return [
-    ['date', 'business', 'product', 'size', 'qty', 'unit_price_ils', 'total_ils', 'customer', 'payment_status', 'notes'],
+    ['date', 'business', 'product', 'size', 'qty', 'unit_price_ils', 'total_ils', 'customer', 'payment_status', 'notes', 'sale_group_id'],
     ...sales.map(sale => {
       const item = getItem(sale.itemId) || {};
       const total = Number(sale.qty || 0) * Number(sale.unitPrice || 0);
@@ -1042,7 +1326,8 @@ function buildSalesCsvRows() {
         total,
         sale.customer,
         sale.status,
-        sale.notes
+        sale.notes,
+        sale.saleGroupId || ''
       ];
     })
   ];
@@ -1298,6 +1583,57 @@ function buildPaymentsCsvRows() {
   return rows;
 }
 
+function renderSamplesTable() {
+  if (!els.samplesBody) return;
+  const q = (els.samplesSearch?.value || '').trim().toLowerCase();
+  const rows = SAMPLES_CATALOG.filter(row => {
+    if (!q) return true;
+    const hay = `${row.batch} ${row.sku} ${row.desc} ${row.ref || ''} ${row.kind}`.toLowerCase();
+    return hay.includes(q);
+  });
+  const COLS = 7;
+  const parts = [];
+  let prevBatch = null;
+  let n = 0;
+  for (const row of rows) {
+    if (row.batch !== prevBatch) {
+      prevBatch = row.batch;
+      parts.push(`<tr class="samples-section-head"><td colspan="${COLS}">${escapeHtml(row.batch)}</td></tr>`);
+    }
+    n += 1;
+    const trClass = row.kind === 'freight' ? 'samples-row--freight' : '';
+    parts.push(`
+      <tr class="${trClass}">
+        <td>${n}</td>
+        <td><strong>${escapeHtml(row.sku)}</strong></td>
+        <td>${escapeHtml(row.desc)}</td>
+        <td>${escapeHtml(String(row.qty))}</td>
+        <td>${escapeHtml(row.unit)}</td>
+        <td>${formatSampleMoney(row.currency, row.unitPrice)}</td>
+        <td>${formatSampleMoney(row.currency, row.lineTotal)}</td>
+      </tr>`);
+  }
+  els.samplesBody.innerHTML = parts.join('');
+}
+
+function buildSamplesCsvRows() {
+  return [
+    ['order', 'sku', 'description', 'qty', 'unit', 'currency', 'unit_price', 'line_total', 'ref', 'kind'],
+    ...SAMPLES_CATALOG.map(row => [
+      row.batch,
+      row.sku,
+      row.desc,
+      row.qty,
+      row.unit,
+      row.currency,
+      row.unitPrice ?? '',
+      row.lineTotal ?? '',
+      row.ref,
+      row.kind
+    ])
+  ];
+}
+
 function renderAll() {
   renderDashboard();
   renderInventoryNissim();
@@ -1307,11 +1643,8 @@ function renderAll() {
   renderSalesTable();
   renderOrdersTable();
   renderPayments();
-  populateSaleSelect(els.saleFormNissim?.querySelector('.js-sale-item'), 'nissim');
-  populateSaleSelect(els.saleFormDoron?.querySelector('.js-sale-item'), 'doron');
-  if (els.saleBusinessSelect && els.saleItemGlobal) {
-    populateSaleSelect(els.saleItemGlobal, els.saleBusinessSelect.value);
-  }
+  renderSamplesTable();
+  repopulateAllSaleFormLineSelects();
 }
 
 function initNavigation() {
@@ -1336,6 +1669,7 @@ function init() {
   addOrderLineRow();
 
   initNavigation();
+  initLayoutRecovery();
 
   let startPanel = 'dashboard';
   try {
@@ -1348,8 +1682,21 @@ function init() {
   bindSaleForm(els.saleFormDoron, 'doron');
   bindSaleForm(els.saleFormGlobal, null);
 
+  setupSaleLineListeners(els.saleFormNissim, 'nissim');
+  setupSaleLineListeners(els.saleFormDoron, 'doron');
+  setupSaleLineListeners(els.saleFormGlobal, null);
+  if (els.saleFormNissim?.querySelector('.js-sale-lines') && !els.saleFormNissim.querySelector('.sale-line-row')) {
+    addSaleLineRow(els.saleFormNissim, 'nissim');
+  }
+  if (els.saleFormDoron?.querySelector('.js-sale-lines') && !els.saleFormDoron.querySelector('.sale-line-row')) {
+    addSaleLineRow(els.saleFormDoron, 'doron');
+  }
+  if (els.saleFormGlobal?.querySelector('.js-sale-lines') && !els.saleFormGlobal.querySelector('.sale-line-row')) {
+    addSaleLineRow(els.saleFormGlobal, els.saleBusinessSelect?.value || 'nissim');
+  }
+
   els.saleBusinessSelect?.addEventListener('change', () => {
-    populateSaleSelect(els.saleItemGlobal, els.saleBusinessSelect.value);
+    repopulateAllSaleFormLineSelects();
   });
 
   els.orderBusiness.addEventListener('change', () => {
@@ -1367,6 +1714,8 @@ function init() {
     els.inventorySearchNissim.focus();
   });
   els.salesSearch.addEventListener('input', renderSalesTable);
+  els.samplesSearch?.addEventListener('input', renderSamplesTable);
+  els.exportSamplesCsvBtn?.addEventListener('click', () => downloadCsv('vipo-samples-catalog.csv', buildSamplesCsvRows()));
 
   els.printReportBtn.addEventListener('click', () => window.print());
   els.exportBackupBtn.addEventListener('click', exportBackup);

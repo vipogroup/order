@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css" />
+  <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
+  <link rel="stylesheet" href="css/styles.css?v=6" />
 </head>
 <body class="app-body">
   <header class="app-top">
@@ -36,6 +37,7 @@
         <button type="button" class="app-nav__btn" data-panel="gaps" title="פערים: הזמנה מול הגיע ומלאי אצלי">פערים</button>
         <button type="button" class="app-nav__btn" data-panel="orders" title="הזמנות ואספקה">הזמנות</button>
         <button type="button" class="app-nav__btn" data-panel="sales" title="מכירות וכלים">מכירות</button>
+        <button type="button" class="app-nav__btn" data-panel="samples" title="דוגמאות שהוזמנו מהספק">דוגמאות</button>
         <button type="button" class="app-nav__btn" data-panel="payments" title="העברות, עלויות ורווח">תשלומים</button>
       </nav>
     </div>
@@ -159,12 +161,14 @@
         <aside class="layout-split__aside">
           <section class="card card--nested card--sticky card--form-panel">
             <h3 class="panel-aside-title">רישום מכירה</h3>
-            <p class="form-hint">מכירה מורידה מ־«נותר אצלי» לפי מה שהגיע בפועל</p>
+            <p class="form-hint">אפשר כמה מוצרים באותה מכירה — «+ מוצר». המלאי יורד מ־«נותר אצלי».</p>
             <form id="saleFormNissim" class="sale-form sale-form--compact" data-business="nissim">
               <label>תאריך <input class="js-sale-date" type="date" required /></label>
-              <label class="full">מוצר <select class="js-sale-item" required></select></label>
-              <label>כמות <input class="js-sale-qty" type="number" min="1" step="1" value="1" required /></label>
-              <label>מחיר יחידה ₪ <input class="js-sale-price" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
+              <div class="sale-lines-toolbar">
+                <span class="sale-lines-label">מוצרים במכירה</span>
+                <button type="button" class="btn btn--small js-add-sale-line">+ מוצר</button>
+              </div>
+              <div class="js-sale-lines"></div>
               <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
               <label class="full">סטטוס תשלום
                 <select class="js-sale-status">
@@ -218,11 +222,14 @@
         <aside class="layout-split__aside">
           <section class="card card--nested card--sticky card--form-panel card--form-panel-doron">
             <h3 class="panel-aside-title">רישום מכירה</h3>
+            <p class="form-hint form-hint--tight">כמה מוצרים באותה מכירה — «+ מוצר».</p>
             <form id="saleFormDoron" class="sale-form sale-form--compact" data-business="doron">
               <label>תאריך <input class="js-sale-date" type="date" required /></label>
-              <label class="full">מוצר <select class="js-sale-item" required></select></label>
-              <label>כמות <input class="js-sale-qty" type="number" min="1" step="1" value="1" required /></label>
-              <label>מחיר יחידה ₪ <input class="js-sale-price" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
+              <div class="sale-lines-toolbar">
+                <span class="sale-lines-label">מוצרים במכירה</span>
+                <button type="button" class="btn btn--small js-add-sale-line">+ מוצר</button>
+              </div>
+              <div class="js-sale-lines"></div>
               <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
               <label class="full">סטטוס תשלום
                 <select class="js-sale-status">
@@ -562,7 +569,7 @@
       <div class="grid-two">
         <section class="card card--lift">
           <h3 class="section-label">מכירה</h3>
-          <p class="form-hint">בחרו עסק ואז מוצר — הרשימה לפי יתרה עדכנית</p>
+          <p class="form-hint">בחרו עסק, אז הוסיפו שורה לכל מוצר (אפשר כמה באותה מכירה).</p>
           <form id="saleFormGlobal" class="sale-form" data-business="">
             <label>עסק
               <select id="saleBusinessSelect" required>
@@ -571,9 +578,11 @@
               </select>
             </label>
             <label>תאריך <input class="js-sale-date" type="date" required /></label>
-            <label class="full">מוצר <select class="js-sale-item" id="saleItemGlobal" required></select></label>
-            <label>כמות <input class="js-sale-qty" type="number" min="1" step="1" value="1" required /></label>
-            <label>מחיר יחידה ₪ <input class="js-sale-price" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
+            <div class="sale-lines-toolbar">
+              <span class="sale-lines-label">מוצרים במכירה</span>
+              <button type="button" class="btn btn--small js-add-sale-line">+ מוצר</button>
+            </div>
+            <div class="js-sale-lines" id="saleLinesGlobal"></div>
             <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
             <label>סטטוס תשלום
               <select class="js-sale-status">
@@ -622,13 +631,47 @@
                 <th>לקוח</th>
                 <th>תשלום</th>
                 <th>הערות</th>
-                <th></th>
+                <th class="sales-th-actions"></th>
               </tr>
             </thead>
             <tbody id="salesBody"></tbody>
           </table>
         </div>
         <p class="empty-state" id="emptySalesState">עדיין לא הוזנו מכירות.</p>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-samples" data-panel-id="samples" hidden>
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">דוגמאות</p>
+          <h2 class="panel-title">דוגמאות — מחירים ממסמכים</h2>
+          <p class="panel-head__sub">לעיון בלבד (לא מחובר למלאי). המחירים ביואן או בדולר לפי המסמך.</p>
+        </div>
+        <div class="filters">
+          <div class="field-grow">
+            <input id="samplesSearch" type="search" placeholder="חיפוש דגם / מוצר…" autocomplete="off" />
+          </div>
+          <button type="button" class="btn btn--small" id="exportSamplesCsvBtn">יצוא CSV</button>
+        </div>
+      </div>
+      <section class="card card--lift">
+        <div class="table-wrap">
+          <table class="data-table data-table--samples data-table--wrap-product">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>דגם</th>
+                <th>מוצר</th>
+                <th>כמות</th>
+                <th>יח׳</th>
+                <th>מחיר יח׳</th>
+                <th>סה״כ</th>
+              </tr>
+            </thead>
+            <tbody id="samplesBody"></tbody>
+          </table>
+        </div>
       </section>
     </section>
   </main>
@@ -640,6 +683,6 @@
 
   <div id="appToast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>
