@@ -9,14 +9,20 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=6" />
+  <link rel="stylesheet" href="css/styles.css?v=8" />
 </head>
 <body class="app-body">
   <header class="app-top">
     <div class="app-top__inner">
       <div class="app-top__lead">
         <span class="brand-mark" aria-hidden="true">V</span>
-        <h1 class="app-top__title">VIPO <span class="app-top__title-muted">· מלאי והזמנות</span></h1>
+        <div class="app-top__title-block">
+          <h1 class="app-top__title">VIPO <span class="app-top__title-muted">· מלאי והזמנות</span></h1>
+          <span id="vipoCloudHint" class="app-top__cloud-hint" hidden></span>
+          <button type="button" id="cloudSyncSetupBtn" class="app-top__sync-btn">
+            שיתוף נתונים בין מכשירים (הפעלה)
+          </button>
+        </div>
       </div>
       <div class="app-top__actions">
         <button type="button" class="btn btn--small btn--primary" id="printReportBtn">הדפס דוח</button>
@@ -667,6 +673,7 @@
                 <th>יח׳</th>
                 <th>מחיר יח׳</th>
                 <th>סה״כ</th>
+                <th class="samples-th-actions"></th>
               </tr>
             </thead>
             <tbody id="samplesBody"></tbody>
@@ -683,6 +690,43 @@
 
   <div id="appToast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-  <script src="js/app.js?v=10"></script>
+  <dialog id="cloudSyncDialog" class="cloud-sync-dialog" aria-labelledby="cloudSyncTitle">
+    <div class="cloud-sync-dialog__inner">
+      <button type="button" class="cloud-sync-dialog__x" id="cloudSyncCloseX" aria-label="סגירה">×</button>
+      <h2 id="cloudSyncTitle" class="cloud-sync-dialog__title">שיתוף נתונים בין מכשירים</h2>
+      <p class="cloud-sync-dialog__lead">
+        כדי שכל מי שיש לו את הקישור יראה את אותם נתונים, צריך מסד בענן (Firebase Firestore — חינמי לשימוש בסיסי).
+        אי אפשר לעשות זאת רק מתוך הקישור בלי שלב הגדרה אחד.
+      </p>
+      <ol class="cloud-sync-dialog__steps">
+        <li>נכנסים ל־<a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">Firebase Console</a> → יוצרים פרויקט.</li>
+        <li>בוחרים <strong>Firestore Database</strong> → יוצרים מסד (Production או Test).</li>
+        <li>גלגל השיניים → <strong>Project settings</strong> → בוחרים אפליקציית Web → מעתיקים את בלוק ה־<code>firebaseConfig</code> (אובייקט JSON).</li>
+        <li>ב־Firestore → <strong>Rules</strong> — מדביקים (לצוות פנימי בלבד; לא לפרסום רחוב):</li>
+      </ol>
+      <pre class="cloud-sync-dialog__rules" dir="ltr">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /vipo_state/{doc} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+      <p class="cloud-sync-dialog__note">
+        כל מכשיר שפותח את האתר צריך להדביק <strong>את אותו קונפיג</strong> פעם אחת כאן (או שממלאים את הקובץ <code>js/firebase-config.js</code> בפרויקט לפני פריסה).
+      </p>
+      <label class="cloud-sync-dialog__label" for="cloudSyncJsonInput">הדבקת קונפיג (JSON)</label>
+      <textarea id="cloudSyncJsonInput" class="cloud-sync-dialog__textarea" rows="8" dir="ltr" placeholder='{ "apiKey": "...", "authDomain": "...", ... }'></textarea>
+      <p id="cloudSyncError" class="cloud-sync-dialog__error" hidden></p>
+      <div class="cloud-sync-dialog__actions">
+        <button type="button" class="btn btn--small btn--primary" id="cloudSyncSaveBtn">שמירה והפעלה מחדש</button>
+        <button type="button" class="btn btn--small" id="cloudSyncClearBtn">ביטול שיתוף (מחיקה ממכשיר זה)</button>
+        <button type="button" class="btn btn--small btn--outline-light" id="cloudSyncCancelBtn">סגור</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="js/firebase-config.js?v=2"></script>
+  <script src="js/app.js?v=13"></script>
 </body>
 </html>

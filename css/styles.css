@@ -87,6 +87,9 @@ button { cursor: pointer; }
   gap: 10px;
   min-width: 0;
 }
+.app-top__title-block {
+  min-width: 0;
+}
 .brand-mark {
   width: 36px;
   height: 36px;
@@ -112,6 +115,143 @@ button { cursor: pointer; }
 .app-top__title-muted {
   font-weight: 600;
   color: rgba(244, 246, 250, 0.72);
+}
+.app-top__cloud-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(180, 220, 255, 0.92);
+}
+.app-top__sync-btn {
+  display: inline-flex;
+  margin-top: 8px;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0e1117;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.app-top__sync-btn:hover {
+  background: #fff;
+}
+.app-top__sync-btn:focus-visible {
+  outline: 2px solid rgba(180, 220, 255, 0.95);
+  outline-offset: 2px;
+}
+
+/* ——— Cloud sync setup dialog ——— */
+.cloud-sync-dialog {
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 0;
+  max-width: min(96vw, 540px);
+  width: 100%;
+  background: var(--surface-elevated);
+  color: var(--ink);
+  box-shadow: 0 28px 90px rgba(14, 17, 23, 0.28);
+}
+.cloud-sync-dialog::backdrop {
+  background: rgba(14, 17, 23, 0.48);
+}
+.cloud-sync-dialog__inner {
+  position: relative;
+  padding: 22px 22px 20px;
+  max-height: min(88vh, 720px);
+  overflow: auto;
+}
+.cloud-sync-dialog__x {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: var(--paper-deep);
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+[dir="rtl"] .cloud-sync-dialog__x {
+  left: auto;
+  right: 10px;
+}
+.cloud-sync-dialog__title {
+  margin: 0 40px 10px 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+[dir="rtl"] .cloud-sync-dialog__title {
+  margin: 0 0 10px 40px;
+}
+.cloud-sync-dialog__lead {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.cloud-sync-dialog__steps {
+  margin: 0 0 12px;
+  padding-inline-start: 22px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.cloud-sync-dialog__steps a {
+  color: var(--accent);
+  font-weight: 600;
+}
+.cloud-sync-dialog__rules {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  background: var(--ink);
+  color: #e2e8f0;
+  border-radius: var(--radius-sm);
+  overflow: auto;
+}
+.cloud-sync-dialog__note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.cloud-sync-dialog__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.cloud-sync-dialog__textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  resize: vertical;
+  min-height: 140px;
+  font-size: 13px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.cloud-sync-dialog__error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+.cloud-sync-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
 }
 .eyebrow {
   margin: 0;
@@ -760,7 +900,11 @@ input:focus, select:focus, textarea:focus {
 .data-table tbody tr:hover { background: rgba(45, 79, 124, 0.06); }
 .data-table--orders { min-width: 920px; }
 .data-table--gaps { min-width: 960px; }
-.data-table--samples { min-width: 640px; }
+.data-table--samples { min-width: 680px; }
+.samples-th-actions {
+  width: 1%;
+  white-space: nowrap;
+}
 .data-table--samples td:nth-child(3) {
   white-space: normal;
   max-width: 220px;

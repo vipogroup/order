@@ -1,5 +1,17 @@
 const STORAGE_KEY_V2 = 'vipo_inventory_state_v2';
 const STORAGE_KEY_V1 = 'vipo_inventory_sales_v1';
+const STORAGE_KEY_SAMPLES = 'vipo_samples_catalog_v1';
+
+/** סנכרון ענן (Firestore); כבוי כש־firebase-config ללא apiKey */
+let vipoApplyingRemote = false;
+const vipoCloudCtx = {
+  enabled: false,
+  pushTimer: null,
+  unsub: null,
+  db: null,
+  docRef: null,
+  lastLocalPushAt: 0
+};
 const LEGACY_DORON_ID = 'doron-table-180x90x70';
 const DORON_ID = 'doron-table-80x90x70';
 const LAST_PANEL_KEY = 'vipo_last_panel';
@@ -135,6 +147,60 @@ const SAMPLES_CATALOG = [
   { batch: SAMPLE_BATCH_ORDER_AIR, sku: 'V501', desc: 'שואב רובוטי', qty: 1, unit: 'PC', currency: 'CNY', unitPrice: 1700, lineTotal: 1700, ref: '', kind: 'product' },
   { batch: SAMPLE_BATCH_ORDER_AIR, sku: 'FedEx', desc: 'משלוח אוויר', qty: 1, unit: '—', currency: 'CNY', unitPrice: null, lineTotal: 1595, ref: '', kind: 'freight' }
 ];
+
+/** עותק עריכה של דוגמאות (מקומי בדפדפן); ברירת מחדל נטענת מ־SAMPLES_CATALOG */
+let samplesCatalog = [];
+
+function cloneDefaultSamplesWithIds() {
+  return SAMPLES_CATALOG.map(row => ({ ...row, id: newId() }));
+}
+
+function loadSamplesCatalog() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SAMPLES);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) {
+        samplesCatalog = parsed.map(row => ({
+          batch: row.batch,
+          sku: row.sku,
+          desc: row.desc,
+          qty: row.qty,
+          unit: row.unit,
+          currency: row.currency,
+          unitPrice: row.unitPrice,
+          lineTotal: row.lineTotal,
+          ref: row.ref ?? '',
+          kind: row.kind === 'freight' ? 'freight' : 'product',
+          id: row.id || newId()
+        }));
+        return;
+      }
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  samplesCatalog = cloneDefaultSamplesWithIds();
+  saveSamplesCatalog();
+}
+
+function saveSamplesCatalog() {
+  try {
+    localStorage.setItem(STORAGE_KEY_SAMPLES, JSON.stringify(samplesCatalog));
+  } catch (e) {
+    console.error(e);
+  }
+  scheduleVipoCloudPush();
+}
+
+function deleteSampleRow(id) {
+  if (!id || !samplesCatalog.some(r => r.id === id)) return;
+  if (!confirm('למחוק שורה זו מרשימת הדוגמאות?')) return;
+  samplesCatalog = samplesCatalog.filter(r => r.id !== id);
+  saveSamplesCatalog();
+  renderSamplesTable();
+  showToast('השורה נמחקה');
+}
 
 let sales = [];
 let orders = [];
@@ -400,6 +466,297 @@ function saveState() {
     payments
   };
   localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(payload));
+  scheduleVipoCloudPush();
+}
+
+function getLocalSavedAt() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_V2);
+    if (!raw) return '';
+    return String(JSON.parse(raw).savedAt || '');
+  } catch (_) {
+    return '';
+  }
+}
+
+function getVipoCloudDocumentPayload() {
+  return {
+    version: 5,
+    savedAt: new Date().toISOString(),
+    sales,
+    orders,
+    receivedByItemId,
+    payments,
+    samplesCatalog
+  };
+}
+
+function applyVipoCloudDocument(data) {
+  if (!data || typeof data !== 'object') return;
+  vipoApplyingRemote = true;
+  try {
+    if (Array.isArray(data.sales)) sales = migrateSalesItemIds(data.sales);
+    if (Array.isArray(data.orders)) orders = data.orders;
+    else if (!data.orders) orders = [];
+    if (data.receivedByItemId && typeof data.receivedByItemId === 'object') {
+      receivedByItemId = { ...data.receivedByItemId };
+    }
+    if (data.payments && typeof data.payments === 'object') {
+      payments = mergePaymentsState(data.payments);
+    }
+    if (Array.isArray(data.samplesCatalog) && data.samplesCatalog.length) {
+      samplesCatalog = data.samplesCatalog.map(row => ({
+        batch: row.batch,
+        sku: row.sku,
+        desc: row.desc,
+        qty: row.qty,
+        unit: row.unit,
+        currency: row.currency,
+        unitPrice: row.unitPrice,
+        lineTotal: row.lineTotal,
+        ref: row.ref ?? '',
+        kind: row.kind === 'freight' ? 'freight' : 'product',
+        id: row.id || newId()
+      }));
+    }
+    const payload = {
+      version: 4,
+      savedAt: data.savedAt || new Date().toISOString(),
+      sales,
+      orders,
+      receivedByItemId,
+      payments
+    };
+    localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(payload));
+    try {
+      localStorage.setItem(STORAGE_KEY_SAMPLES, JSON.stringify(samplesCatalog));
+    } catch (e) {
+      console.error(e);
+    }
+    syncPaymentsFormInputs();
+    renderAll();
+  } finally {
+    vipoApplyingRemote = false;
+  }
+}
+
+function loadFirebaseCompatScripts() {
+  return new Promise((resolve, reject) => {
+    if (typeof firebase !== 'undefined' && firebase.apps) return resolve();
+    const one = src =>
+      new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.onload = () => res();
+        s.onerror = () => rej(new Error(src));
+        document.head.appendChild(s);
+      });
+    one('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js')
+      .then(() => one('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'))
+      .then(() => resolve())
+      .catch(reject);
+  });
+}
+
+function scheduleVipoCloudPush() {
+  if (!vipoCloudCtx.enabled || vipoApplyingRemote) return;
+  clearTimeout(vipoCloudCtx.pushTimer);
+  vipoCloudCtx.pushTimer = setTimeout(() => {
+    if (!vipoCloudCtx.docRef || vipoApplyingRemote) return;
+    vipoCloudCtx.lastLocalPushAt = Date.now();
+    vipoCloudCtx.docRef
+      .set(getVipoCloudDocumentPayload())
+      .catch(e => {
+        console.error(e);
+        showToast('שמירה לענן נכשלה — הנתונים נשמרו רק במכשיר זה', 4200);
+      });
+  }, 600);
+}
+
+function updateVipoCloudHint() {
+  const el = document.getElementById('vipoCloudHint');
+  const setupBtn = document.getElementById('cloudSyncSetupBtn');
+  if (el) {
+    if (vipoCloudCtx.enabled) {
+      el.hidden = false;
+      el.textContent = 'סנכרון ענן פעיל — שינויים נשמרים לכולם';
+    } else {
+      el.hidden = true;
+      el.textContent = '';
+    }
+  }
+  if (setupBtn) {
+    setupBtn.hidden = false;
+    setupBtn.textContent = vipoCloudCtx.enabled
+      ? 'ניהול שיתוף נתונים'
+      : 'שיתוף נתונים בין מכשירים (הפעלה)';
+  }
+}
+
+function getFirebaseStorageKey() {
+  return window.VIPO_FIREBASE_STORAGE_KEY || 'VIPO_FIREBASE_CONFIG';
+}
+
+function normalizeFirebaseWebConfig(o) {
+  return {
+    apiKey: String(o.apiKey || ''),
+    authDomain: String(o.authDomain || ''),
+    projectId: String(o.projectId || ''),
+    storageBucket: String(o.storageBucket || ''),
+    messagingSenderId: String(o.messagingSenderId || ''),
+    appId: String(o.appId || '')
+  };
+}
+
+function parseFirebaseConfigPaste(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const tryParse = str => {
+    try {
+      const o = JSON.parse(str);
+      if (o && typeof o === 'object' && o.apiKey && o.projectId) return normalizeFirebaseWebConfig(o);
+    } catch (_) {
+      /* continue */
+    }
+    return null;
+  };
+  let cfg = tryParse(s);
+  if (cfg) return cfg;
+  const i = s.indexOf('{');
+  const j = s.lastIndexOf('}');
+  if (i >= 0 && j > i) cfg = tryParse(s.slice(i, j + 1));
+  return cfg;
+}
+
+function closeCloudSyncDialog() {
+  const d = document.getElementById('cloudSyncDialog');
+  if (d && typeof d.close === 'function' && d.open) d.close();
+}
+
+function openCloudSyncDialog() {
+  const d = document.getElementById('cloudSyncDialog');
+  const ta = document.getElementById('cloudSyncJsonInput');
+  const err = document.getElementById('cloudSyncError');
+  if (err) {
+    err.hidden = true;
+    err.textContent = '';
+  }
+  if (ta) {
+    try {
+      const saved = localStorage.getItem(getFirebaseStorageKey());
+      ta.value = saved || '';
+    } catch (_) {
+      ta.value = '';
+    }
+  }
+  if (d && typeof d.showModal === 'function') d.showModal();
+  ta?.focus();
+}
+
+function initCloudSyncDialog() {
+  const d = document.getElementById('cloudSyncDialog');
+  const save = document.getElementById('cloudSyncSaveBtn');
+  const clear = document.getElementById('cloudSyncClearBtn');
+  const cancel = document.getElementById('cloudSyncCancelBtn');
+  const x = document.getElementById('cloudSyncCloseX');
+  const setup = document.getElementById('cloudSyncSetupBtn');
+  const ta = document.getElementById('cloudSyncJsonInput');
+  const err = document.getElementById('cloudSyncError');
+
+  setup?.addEventListener('click', () => openCloudSyncDialog());
+  x?.addEventListener('click', () => closeCloudSyncDialog());
+  cancel?.addEventListener('click', () => closeCloudSyncDialog());
+  d?.addEventListener('click', ev => {
+    if (ev.target === d) closeCloudSyncDialog();
+  });
+
+  save?.addEventListener('click', () => {
+    const cfg = parseFirebaseConfigPaste(ta?.value);
+    if (!cfg) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = 'לא הצלחנו לקרוא JSON תקין. צריך לפחות apiKey ו־projectId.';
+      }
+      return;
+    }
+    try {
+      localStorage.setItem(getFirebaseStorageKey(), JSON.stringify(cfg));
+    } catch (e) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = 'שמירה בדפדפן נכשלה (למשל במצב גלישה פרטית).';
+      }
+      return;
+    }
+    location.reload();
+  });
+
+  clear?.addEventListener('click', () => {
+    if (!confirm('למחוק את הגדרת השיתוף ממכשיר זה ולחזור לשמירה מקומית בלבד?')) return;
+    try {
+      localStorage.removeItem(getFirebaseStorageKey());
+    } catch (_) {
+      /* */
+    }
+    location.reload();
+  });
+}
+
+async function initVipoCloudSync() {
+  const cfg = window.VIPO_FIREBASE;
+  if (!cfg?.apiKey || !cfg?.projectId) {
+    updateVipoCloudHint();
+    return;
+  }
+  try {
+    await loadFirebaseCompatScripts();
+    if (typeof firebase === 'undefined' || !firebase.initializeApp) {
+      updateVipoCloudHint();
+      return;
+    }
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    const db = firebase.firestore();
+    vipoCloudCtx.enabled = true;
+    vipoCloudCtx.db = db;
+    vipoCloudCtx.docRef = db.collection('vipo_state').doc('main');
+
+    const snap = await vipoCloudCtx.docRef.get();
+    if (snap.exists) {
+      const data = snap.data();
+      const remote = String(data.savedAt || '');
+      const local = getLocalSavedAt();
+      if (remote && (!local || remote > local)) {
+        applyVipoCloudDocument(data);
+        showToast('נטענו נתונים מהענן', 2400);
+      }
+    } else {
+      vipoCloudCtx.lastLocalPushAt = Date.now();
+      await vipoCloudCtx.docRef.set(getVipoCloudDocumentPayload());
+    }
+
+    if (vipoCloudCtx.unsub) vipoCloudCtx.unsub();
+    vipoCloudCtx.unsub = vipoCloudCtx.docRef.onSnapshot(
+      docSnap => {
+        if (!docSnap.exists || vipoApplyingRemote) return;
+        if (Date.now() - vipoCloudCtx.lastLocalPushAt < 1200) return;
+        const data = docSnap.data();
+        const remote = String(data.savedAt || '');
+        const local = getLocalSavedAt();
+        if (remote && (!local || remote > local)) {
+          applyVipoCloudDocument(data);
+          showToast('עודכנו נתונים ממכשיר אחר', 2600);
+        }
+      },
+      err => console.error(err)
+    );
+    updateVipoCloudHint();
+  } catch (e) {
+    console.error(e);
+    vipoCloudCtx.enabled = false;
+    showToast('סנכרון ענן לא זמין — עובדים במצב מקומי', 4000);
+    updateVipoCloudHint();
+  }
 }
 
 function inventoryForBusiness(biz) {
@@ -1361,7 +1718,8 @@ function exportBackup() {
     sales,
     orders,
     receivedByItemId,
-    payments
+    payments,
+    samplesCatalog
   };
   downloadBlob(`vipo-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2), 'application/json');
 }
@@ -1381,6 +1739,22 @@ function importBackup(ev) {
       }
       if (payload.payments && typeof payload.payments === 'object') {
         payments = mergePaymentsState(payload.payments);
+      }
+      if (Array.isArray(payload.samplesCatalog) && payload.samplesCatalog.length) {
+        samplesCatalog = payload.samplesCatalog.map(row => ({
+          batch: row.batch,
+          sku: row.sku,
+          desc: row.desc,
+          qty: row.qty,
+          unit: row.unit,
+          currency: row.currency,
+          unitPrice: row.unitPrice,
+          lineTotal: row.lineTotal,
+          ref: row.ref ?? '',
+          kind: row.kind === 'freight' ? 'freight' : 'product',
+          id: row.id || newId()
+        }));
+        saveSamplesCatalog();
       }
       saveState();
       syncPaymentsFormInputs();
@@ -1586,12 +1960,12 @@ function buildPaymentsCsvRows() {
 function renderSamplesTable() {
   if (!els.samplesBody) return;
   const q = (els.samplesSearch?.value || '').trim().toLowerCase();
-  const rows = SAMPLES_CATALOG.filter(row => {
+  const rows = samplesCatalog.filter(row => {
     if (!q) return true;
-    const hay = `${row.batch} ${row.sku} ${row.desc} ${row.ref || ''} ${row.kind}`.toLowerCase();
+    const hay = `${row.batch} ${row.sku} ${row.desc} ${row.ref || ''} ${row.kind} ${row.id || ''}`.toLowerCase();
     return hay.includes(q);
   });
-  const COLS = 7;
+  const COLS = 8;
   const parts = [];
   let prevBatch = null;
   let n = 0;
@@ -1611,6 +1985,7 @@ function renderSamplesTable() {
         <td>${escapeHtml(row.unit)}</td>
         <td>${formatSampleMoney(row.currency, row.unitPrice)}</td>
         <td>${formatSampleMoney(row.currency, row.lineTotal)}</td>
+        <td><button type="button" class="btn btn--small btn--danger js-delete-sample" data-sample-id="${escapeHtml(row.id)}">מחק</button></td>
       </tr>`);
   }
   els.samplesBody.innerHTML = parts.join('');
@@ -1618,8 +1993,9 @@ function renderSamplesTable() {
 
 function buildSamplesCsvRows() {
   return [
-    ['order', 'sku', 'description', 'qty', 'unit', 'currency', 'unit_price', 'line_total', 'ref', 'kind'],
-    ...SAMPLES_CATALOG.map(row => [
+    ['id', 'order', 'sku', 'description', 'qty', 'unit', 'currency', 'unit_price', 'line_total', 'ref', 'kind'],
+    ...samplesCatalog.map(row => [
+      row.id,
       row.batch,
       row.sku,
       row.desc,
@@ -1656,12 +2032,15 @@ function initNavigation() {
   });
 }
 
-function init() {
+async function init() {
   const state = loadState();
   sales = state.sales;
   orders = state.orders;
   receivedByItemId = state.receivedByItemId || {};
   payments = state.payments || defaultPaymentsState();
+  loadSamplesCatalog();
+  initCloudSyncDialog();
+  await initVipoCloudSync();
   saveState();
   syncPaymentsFormInputs();
 
@@ -1716,6 +2095,12 @@ function init() {
   els.salesSearch.addEventListener('input', renderSalesTable);
   els.samplesSearch?.addEventListener('input', renderSamplesTable);
   els.exportSamplesCsvBtn?.addEventListener('click', () => downloadCsv('vipo-samples-catalog.csv', buildSamplesCsvRows()));
+  els.samplesBody?.addEventListener('click', e => {
+    const btn = e.target.closest('.js-delete-sample');
+    if (!btn) return;
+    const sid = btn.getAttribute('data-sample-id');
+    if (sid) deleteSampleRow(sid);
+  });
 
   els.printReportBtn.addEventListener('click', () => window.print());
   els.exportBackupBtn.addEventListener('click', exportBackup);
@@ -1804,4 +2189,4 @@ function init() {
   renderAll();
 }
 
-init();
+init().catch(err => console.error(err));
