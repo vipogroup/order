@@ -1009,6 +1009,233 @@ input:focus, select:focus, textarea:focus {
   transform: translateX(50%) translateY(0);
 }
 
+/* ——— Mobile: easier touch, less clutter, forms first ——— */
+@media (max-width: 900px) {
+  .order-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 639px) {
+  body.app-body {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .page-shell {
+    padding: 16px 12px max(48px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .card {
+    padding: 16px 14px;
+    margin-bottom: 14px;
+    border-radius: var(--radius);
+  }
+
+  .panel-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .panel-title {
+    font-size: clamp(1.2rem, 5vw, 1.5rem);
+  }
+  .panel-head__sub {
+    max-width: none;
+    font-size: 15px;
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .field-grow,
+  .search-wide {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .app-top__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .app-top__actions {
+    width: 100%;
+    justify-content: stretch;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .app-top__actions .btn--small {
+    min-height: 44px;
+    font-size: 13px;
+    padding: 0 12px;
+  }
+  .app-top__actions .file-btn {
+    grid-column: 1 / -1;
+  }
+
+  .app-nav {
+    gap: 4px;
+    padding: 8px 10px 2px;
+  }
+  .app-nav__btn {
+    min-height: 48px;
+    padding: 12px 18px 16px;
+    font-size: 15px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app-nav-hint {
+    font-size: 13px;
+    padding: 0 12px 10px;
+    line-height: 1.4;
+  }
+
+  .btn {
+    min-height: 48px;
+    font-size: 15px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn--small {
+    min-height: 44px;
+    font-size: 14px;
+    padding: 0 14px;
+  }
+  .order-actions .btn {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  /* iOS: font-size < 16px on inputs causes zoom on focus */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+    min-height: 48px;
+  }
+  textarea {
+    min-height: 5.5rem;
+  }
+  .sale-form label,
+  .order-form label,
+  .payments-add-form label,
+  .payments-costs-form label {
+    font-size: 14px;
+  }
+
+  .sale-form {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .order-line {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .order-line button {
+    height: 48px;
+    width: 100%;
+    font-size: 15px;
+  }
+
+  /* טופס מכירה / צד לפני הטבלה — פחות גלילה עד הפעולה */
+  .layout-split {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .layout-split__aside {
+    order: -1;
+  }
+
+  .table-wrap {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .data-table {
+    font-size: 14px;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 14px 12px;
+  }
+  .data-table th {
+    font-size: 10px;
+  }
+  .data-table--compact th,
+  .data-table--compact td {
+    padding: 12px 10px;
+    font-size: 14px;
+  }
+
+  .table-wrap--tall {
+    max-height: min(55vh, 480px);
+  }
+
+  .table-input {
+    min-height: 48px;
+    max-width: none;
+    font-size: 16px;
+  }
+
+  .doron-highlight {
+    padding: 20px 14px;
+  }
+  .doron-highlight__qty {
+    font-size: clamp(2.2rem, 12vw, 3rem);
+  }
+
+  .card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .card-actions .btn {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .stat-dl--inline {
+    grid-template-columns: 1fr;
+  }
+  .stat-dl--6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .payments-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .payments-add-form,
+  .payments-costs-form {
+    grid-template-columns: 1fr;
+  }
+  .payments-summary-dl dd {
+    font-size: 1.05rem;
+  }
+
+  .select-compact,
+  .order-status-select {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .tool-list .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* ——— Print ——— */
 @media print {
   .app-top__actions,
