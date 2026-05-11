@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=8" />
+  <link rel="stylesheet" href="css/styles.css?v=9" />
 </head>
 <body class="app-body">
   <header class="app-top">
@@ -713,9 +713,22 @@ service cloud.firestore {
   }
 }</pre>
       <p class="cloud-sync-dialog__note">
-        כל מכשיר שפותח את האתר צריך להדביק <strong>את אותו קונפיג</strong> פעם אחת כאן (או שממלאים את הקובץ <code>js/firebase-config.js</code> בפרויקט לפני פריסה).
+        <strong>קוד ארגון</strong> — המנהל בוחר מילה אחת משותפת (למשל <code>vipogroup-2026</code>). מזינים <strong>את אותו קוד</strong> בכל מכשיר פעם אחת — ואז כולם רואים את אותו מלאי והזמנות.
+        קונפיג Firebase (להלן) נדרש פעם אחת למערכת — אפשר להטמיע אותו בקובץ <code>js/firebase-config.js</code> בפריסה כדי שלא יצטרכו להדביק JSON בכל טלפון.
       </p>
-      <label class="cloud-sync-dialog__label" for="cloudSyncJsonInput">הדבקת קונפיג (JSON)</label>
+      <label class="cloud-sync-dialog__label" for="cloudSyncOrgInput">קוד ארגון (מומלץ — אותו קוד בכל המכשירים)</label>
+      <input
+        id="cloudSyncOrgInput"
+        class="cloud-sync-dialog__org-input"
+        type="text"
+        dir="ltr"
+        autocomplete="off"
+        spellcheck="false"
+        maxlength="64"
+        placeholder="למשל vipogroup-2026"
+      />
+      <p class="cloud-sync-dialog__field-hint">4–64 תווים: אותיות באנגלית, ספרות, מקף וקו תחתון. ריק = ברירת מחדל <code>main</code> (מתאים למי שכבר עבד בעבר).</p>
+      <label class="cloud-sync-dialog__label" for="cloudSyncJsonInput">קונפיג Firebase (JSON) — אופציונלי אם כבר מוטמע באתר</label>
       <textarea id="cloudSyncJsonInput" class="cloud-sync-dialog__textarea" rows="8" dir="ltr" placeholder='{ "apiKey": "...", "authDomain": "...", ... }'></textarea>
       <p id="cloudSyncError" class="cloud-sync-dialog__error" hidden></p>
       <div class="cloud-sync-dialog__actions">
@@ -726,7 +739,7 @@ service cloud.firestore {
     </div>
   </dialog>
 
-  <script src="js/firebase-config.js?v=2"></script>
-  <script src="js/app.js?v=13"></script>
+  <script src="js/firebase-config.js?v=3"></script>
+  <script src="js/app.js?v=14"></script>
 </body>
 </html>

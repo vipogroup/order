@@ -230,6 +230,22 @@ button { cursor: pointer; }
   font-weight: 700;
   margin-bottom: 6px;
 }
+.cloud-sync-dialog__org-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.cloud-sync-dialog__field-hint {
+  margin: 6px 0 14px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
 .cloud-sync-dialog__textarea {
   width: 100%;
   padding: 12px 14px;

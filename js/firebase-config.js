@@ -9,11 +9,13 @@
  * 3) Firestore → Rules — חובה להגדיר הרשאות. לבדיקות פנימיות בלבד (מסוכן לציבור):
  *    match /vipo_state/{doc} { allow read, write: if true; }
  *    לפרודקשן: הגבילו לפי auth / מזהה משתמש.
- * 4) המסמך נשמר ב־ collection `vipo_state` , מזהה מסמך `main`.
+ * 4) המסמך ב־Firestore: collection `vipo_state` , מזהה מסמך = קוד הארגון (ברירת מחדל main אם לא הוגדר).
  *
  * כדי לכבות סנכרון: מחקו את ההגדרה מהממשק או השאירו apiKey ריק ''.
  */
 window.VIPO_FIREBASE_STORAGE_KEY = 'VIPO_FIREBASE_CONFIG';
+/** מזהה מסמך Firestore — נשמר בדפדפן; אותו קוד בכל המכשירים */
+window.VIPO_ORG_DOC_STORAGE_KEY = 'VIPO_ORG_DOC_ID';
 
 window.VIPO_FIREBASE = {
   apiKey: '',
