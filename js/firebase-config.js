@@ -10,6 +10,8 @@
  * 1) Authentication → Sign-in method → Anonymous — חובה (Firestore Rules דורשות auth).
  * 2) Firestore → יצירת מסד; Rules — העתיקו מ־firestore.rules בשורש הפרויקט ופרסמו.
  * 3) Project settings → האפליקציה שלכם (Web) → firebaseConfig.
+ * 4) נתיבי נתונים: inventory/{מפתח_עבודה}/sales, orders, arrivals, products, payments/summary, settings/meta
+ *    (מפתח העבודה = SHA-256 של קוד_הגישה + salt באפליקציה; מסמך legacy vipo_state/1985 נתמך למיגרציה).
  */
 window.VIPO_FIREBASE_STORAGE_KEY = 'VIPO_FIREBASE_CONFIG';
 

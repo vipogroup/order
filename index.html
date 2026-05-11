@@ -761,22 +761,10 @@
         <li>בוחרים <strong>Firestore Database</strong> → יוצרים מסד (Production או Test).</li>
         <li>גלגל השיניים → <strong>Project settings</strong> → בוחרים אפליקציית Web → מעתיקים את בלוק ה־<code>firebaseConfig</code> (אובייקט JSON).</li>
         <li><strong>Authentication</strong> → Sign-in method → הפעילו <strong>Anonymous</strong> (חובה ל־Rules החדשות).</li>
-        <li>ב־Firestore → <strong>Rules</strong> — העתיקו מקובץ <code>firestore.rules</code> בשורש הפרויקט (לא פתוח לכולם).</li>
+        <li>ב־Firestore → <strong>Rules</strong> — העתיקו מקובץ <code>firestore.rules</code> בשורש הפרויקט (גישה רק למשתמשים מחוברים אנונימית, לפי מפתח עבודה בן 64 תווים hex).</li>
       </ol>
-      <pre class="cloud-sync-dialog__rules" dir="ltr">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /vipo_state/{docId} {
-      allow read: if request.auth != null &amp;&amp; docId == '1985';
-      allow create, update: if request.auth != null
-        &amp;&amp; docId == '1985'
-        &amp;&amp; request.resource.data.keys().hasAll(['version', 'savedAt'])
-        &amp;&amp; request.resource.data.version is int
-        &amp;&amp; request.resource.data.savedAt is string;
-      allow delete: if false;
-    }
-  }
-}</pre>
+      <pre class="cloud-sync-dialog__rules" dir="ltr">// מבנה נתונים: inventory/{workspaceKey}/sales|orders|arrivals|products|payments|settings
+// העתקה מלאה: קובץ firestore.rules בפרויקט (כולל מיגרציה מ־vipo_state/1985 אם היה בשימוש).</pre>
       <p class="cloud-sync-dialog__note">
         אם הקובץ <code>firebase-config.js</code> בגיט כבר מלא — אפשר להשאיר את השדה למטה ריק ולשמור (מעדכן רק מצב מקומי). אם עדיין ריק בפריסה — הדביקו JSON כאן <strong>בכל מכשיר</strong> או מלאו בגיט פעם אחת לכולם.
       </p>
@@ -791,7 +779,7 @@ service cloud.firestore {
     </div>
   </dialog>
 
-  <script src="js/firebase-config.js?v=6"></script>
-  <script src="js/app.js?v=18"></script>
+  <script src="js/firebase-config.js?v=7"></script>
+  <script src="js/app.js?v=19"></script>
 </body>
 </html>

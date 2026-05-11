@@ -1,12 +1,65 @@
 rules_version = '2';
-// פריסה: Firebase Console → Firestore → Rules → הדבקה ופרסום.
-// דרישה: באימות Firebase → Sign-in method → הפעילו "Anonymous".
-// לא משתמשים ב-if true — רק משתמשים מחוברים (אנונימי) יכולים לגשת למסמך 1985.
+// Firebase Console → Firestore → Rules → Publish.
+// Spark: Authentication → Sign-in method → Anonymous חובה.
+// נתיב עבודה: inventory/{מפתח_64_hex}/... — המפתח נגזר בצד הלקוח מקוד הגישה + salt באפליקציה.
+// מיגרציה חד־פעמית: מסמך ישן vipo_state/1985 (אם קיים) נקרא מהאפליקציה ונדחף למבנה החדש.
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function authed() {
+      return request.auth != null;
+    }
+
+    function validWorkspace(ws) {
+      return ws is string
+        && ws.size() == 64
+        && ws.matches('^[a-f0-9]+$');
+    }
+
+    function metaDocOk() {
+      return request.resource.data.keys().hasAll(['version', 'savedAt', 'schema'])
+        && request.resource.data.version is int
+        && request.resource.data.savedAt is string
+        && request.resource.data.schema is string;
+    }
+
+    function arrivalQtyOk() {
+      return request.resource.data.keys().hasOnly(['qty'])
+        && (request.resource.data.qty is int || request.resource.data.qty is float);
+    }
+
+    match /inventory/{wsKey} {
+      match /sales/{saleId} {
+        allow read, delete: if authed() && validWorkspace(wsKey);
+        allow create, update: if authed() && validWorkspace(wsKey);
+      }
+      match /orders/{orderId} {
+        allow read, delete: if authed() && validWorkspace(wsKey);
+        allow create, update: if authed() && validWorkspace(wsKey);
+      }
+      match /arrivals/{itemId} {
+        allow read, delete: if authed() && validWorkspace(wsKey);
+        allow create, update: if authed() && validWorkspace(wsKey) && arrivalQtyOk();
+      }
+      match /products/{productId} {
+        allow read, delete: if authed() && validWorkspace(wsKey);
+        allow create, update: if authed() && validWorkspace(wsKey);
+      }
+      match /payments/{payId} {
+        allow read, delete: if authed() && validWorkspace(wsKey) && payId == 'summary';
+        allow create, update: if authed() && validWorkspace(wsKey) && payId == 'summary';
+      }
+      match /settings/{setId} {
+        allow read, delete: if authed() && validWorkspace(wsKey) && setId == 'meta';
+        allow create, update: if authed() && validWorkspace(wsKey) && setId == 'meta' && metaDocOk();
+      }
+    }
+
+    // מסמך legacy לקריאה/כתיבה רק למשתמש מחובר (מיגרציה); מומלץ למחוק ידנית אחרי מעבר מוצלח.
     match /vipo_state/{docId} {
-      allow read: if request.auth != null && docId == '1985';
-      allow create, update: if request.auth != null
+      allow read: if authed() && docId == '1985';
+      allow create, update: if authed()
         && docId == '1985'
         && request.resource.data.keys().hasAll(['version', 'savedAt'])
         && request.resource.data.version is int

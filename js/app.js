@@ -5,20 +5,31 @@ const STORAGE_KEY_SAMPLES = 'vipo_samples_catalog_v1';
 /** כניסה לממשק — בלי קוד אין גישה (נשמר לטאב בלבד ב־sessionStorage) */
 const VIPO_ACCESS_PIN = '1985';
 const VIPO_GATE_SESSION_KEY = 'VIPO_GATE_OK';
-/** מזהה מסמך Firestore: vipo_state/{מזהה} — תואם לקוד הגישה */
-const VIPO_FIRESTORE_DOC_ID = '1985';
+/** מפתח עבודה ב־Firestore: SHA-256(קוד_הגישה|salt) — אותו קוד כניסה = אותו מסלול נתונים */
+const VIPO_WORKSPACE_SALT = 'vipo-order-sharing-v1';
 
 /** סנכרון ענן (Firestore); כבוי כש־firebase-config ללא apiKey */
 let vipoApplyingRemote = false;
 const vipoCloudCtx = {
   enabled: false,
   pushTimer: null,
-  unsub: null,
+  unsubs: [],
   db: null,
-  docRef: null,
+  workspaceKey: null,
+  rootRef: null,
   lastLocalPushAt: 0,
   pendingWhileOffline: false
 };
+
+const vipoRemoteCache = {
+  meta: null,
+  sales: new Map(),
+  orders: new Map(),
+  arrivals: new Map(),
+  payments: null,
+  products: new Map()
+};
+let vipoRemoteMergeTimer = null;
 
 /** debounce לדחיפה לענן (0 = מיידי אחרי אותו tick) */
 const VIPO_CLOUD_PUSH_DEBOUNCE_MS = 0;
@@ -498,6 +509,270 @@ function getLocalSavedAt() {
   }
 }
 
+async function deriveVipoWorkspaceKey(accessPin) {
+  const pin = String(accessPin || '').trim();
+  if (!pin) throw new Error('no-workspace-pin');
+  if (!globalThis.crypto?.subtle?.digest) throw new Error('crypto-unavailable');
+  const text = pin + '|' + VIPO_WORKSPACE_SALT;
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function resetRemoteCache() {
+  vipoRemoteCache.meta = null;
+  vipoRemoteCache.sales = new Map();
+  vipoRemoteCache.orders = new Map();
+  vipoRemoteCache.arrivals = new Map();
+  vipoRemoteCache.payments = null;
+  vipoRemoteCache.products = new Map();
+}
+
+function toFirestoreSafe(data) {
+  if (data === undefined) return null;
+  if (data === null || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(x => toFirestoreSafe(x));
+  const o = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === undefined) continue;
+    o[k] = toFirestoreSafe(v);
+  }
+  return o;
+}
+
+function clearCloudUnsubs() {
+  if (!Array.isArray(vipoCloudCtx.unsubs)) return;
+  vipoCloudCtx.unsubs.forEach(u => {
+    try {
+      u();
+    } catch (_) {
+      /* */
+    }
+  });
+  vipoCloudCtx.unsubs = [];
+}
+
+function buildReceivedByItemIdFromArrivalsCache() {
+  const out = {};
+  for (const [id, row] of vipoRemoteCache.arrivals) {
+    const qty = Number(row?.qty);
+    if (!Number.isFinite(qty)) continue;
+    const it = getItem(id);
+    if (!it) continue;
+    const v = Math.floor(qty);
+    if (v !== it.openingQty) out[id] = v;
+  }
+  return out;
+}
+
+function buildRemoteCloudPayload() {
+  if (!vipoRemoteCache.meta?.savedAt) return null;
+  const samples = [...vipoRemoteCache.products.values()];
+  return {
+    version: 5,
+    savedAt: vipoRemoteCache.meta.savedAt,
+    sales: [...vipoRemoteCache.sales.values()].sort((a, b) =>
+      String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+    ),
+    orders: [...vipoRemoteCache.orders.values()].sort((a, b) =>
+      String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+    ),
+    receivedByItemId: buildReceivedByItemIdFromArrivalsCache(),
+    payments: vipoRemoteCache.payments ? mergePaymentsState(vipoRemoteCache.payments) : defaultPaymentsState(),
+    samplesCatalog: samples.length ? samples : undefined
+  };
+}
+
+function applyFromRemoteCachesFull() {
+  const payload = buildRemoteCloudPayload();
+  if (!payload) return;
+  applyVipoCloudDocument(payload);
+}
+
+function remoteCachesUpdated() {
+  if (!vipoCloudCtx.enabled) return;
+  clearTimeout(vipoRemoteMergeTimer);
+  vipoRemoteMergeTimer = setTimeout(() => {
+    vipoRemoteMergeTimer = null;
+    void tryApplyRemoteFromCaches();
+  }, 120);
+}
+
+async function tryApplyRemoteFromCaches() {
+  if (!vipoCloudCtx.enabled || !vipoCloudCtx.db || !vipoCloudCtx.workspaceKey) return;
+  if (Date.now() - vipoCloudCtx.lastLocalPushAt < 900) return;
+  try {
+    await hydrateInventoryFromServer(vipoCloudCtx.db, vipoCloudCtx.workspaceKey);
+  } catch (e) {
+    console.error(e);
+    setVipoSyncState('error');
+    return;
+  }
+  if (!vipoRemoteCache.meta?.savedAt) return;
+  const remote = String(vipoRemoteCache.meta.savedAt || '');
+  const local = getLocalSavedAt();
+  if (remote && remote > local) {
+    applyFromRemoteCachesFull();
+    if (navigator.onLine) setVipoSyncState('connected');
+    showToast('עודכנו נתונים ממכשיר אחר', 2600);
+  }
+}
+
+async function hydrateInventoryFromServer(db, ws) {
+  resetRemoteCache();
+  const root = db.collection('inventory').doc(ws);
+  const metaSnap = await root.collection('settings').doc('meta').get();
+  if (!metaSnap.exists) return false;
+  vipoRemoteCache.meta = metaSnap.data();
+  const [salesSn, ordSn, arrSn, paySn, prodSn] = await Promise.all([
+    root.collection('sales').get(),
+    root.collection('orders').get(),
+    root.collection('arrivals').get(),
+    root.collection('payments').doc('summary').get(),
+    root.collection('products').get()
+  ]);
+  salesSn.forEach(d => {
+    if (d.exists) vipoRemoteCache.sales.set(d.id, { ...d.data(), id: d.id });
+  });
+  ordSn.forEach(d => {
+    if (d.exists) vipoRemoteCache.orders.set(d.id, { ...d.data(), id: d.id });
+  });
+  arrSn.forEach(d => {
+    if (d.exists) vipoRemoteCache.arrivals.set(d.id, d.data());
+  });
+  if (paySn.exists) vipoRemoteCache.payments = paySn.data();
+  prodSn.forEach(d => {
+    if (d.exists) vipoRemoteCache.products.set(d.id, { ...d.data(), id: d.id });
+  });
+  return true;
+}
+
+function wireInventoryCloudListeners(db, ws) {
+  clearCloudUnsubs();
+  const root = db.collection('inventory').doc(ws);
+  vipoCloudCtx.rootRef = root;
+  const onListenErr = err => {
+    console.error(err);
+    setVipoSyncState('error');
+    showToast('שגיאה בקריאת הענן — נמשיך עם מטמון מקומי', 4500);
+  };
+
+  vipoCloudCtx.unsubs.push(
+    root.collection('settings').doc('meta').onSnapshot(snap => {
+      vipoRemoteCache.meta = snap.exists ? snap.data() : null;
+      remoteCachesUpdated();
+    }, onListenErr)
+  );
+  vipoCloudCtx.unsubs.push(
+    root.collection('sales').onSnapshot(snap => {
+      vipoRemoteCache.sales.clear();
+      snap.forEach(d => vipoRemoteCache.sales.set(d.id, { ...d.data(), id: d.id }));
+      remoteCachesUpdated();
+    }, onListenErr)
+  );
+  vipoCloudCtx.unsubs.push(
+    root.collection('orders').onSnapshot(snap => {
+      vipoRemoteCache.orders.clear();
+      snap.forEach(d => vipoRemoteCache.orders.set(d.id, { ...d.data(), id: d.id }));
+      remoteCachesUpdated();
+    }, onListenErr)
+  );
+  vipoCloudCtx.unsubs.push(
+    root.collection('arrivals').onSnapshot(snap => {
+      vipoRemoteCache.arrivals.clear();
+      snap.forEach(d => vipoRemoteCache.arrivals.set(d.id, d.data()));
+      remoteCachesUpdated();
+    }, onListenErr)
+  );
+  vipoCloudCtx.unsubs.push(
+    root.collection('products').onSnapshot(snap => {
+      vipoRemoteCache.products.clear();
+      snap.forEach(d => vipoRemoteCache.products.set(d.id, { ...d.data(), id: d.id }));
+      remoteCachesUpdated();
+    }, onListenErr)
+  );
+  vipoCloudCtx.unsubs.push(
+    root
+      .collection('payments')
+      .doc('summary')
+      .onSnapshot(snap => {
+        vipoRemoteCache.payments = snap.exists ? snap.data() : defaultPaymentsState();
+        remoteCachesUpdated();
+      }, onListenErr)
+  );
+}
+
+async function pruneCollectionNotIn(db, collRef, keepIds) {
+  const snap = await collRef.get();
+  let batch = db.batch();
+  let n = 0;
+  for (const d of snap.docs) {
+    if (keepIds.has(d.id)) continue;
+    batch.delete(d.ref);
+    n++;
+    if (n >= 450) {
+      await batch.commit();
+      batch = db.batch();
+      n = 0;
+    }
+  }
+  if (n > 0) await batch.commit();
+}
+
+async function pushFullInventoryState() {
+  const db = vipoCloudCtx.db;
+  const ws = vipoCloudCtx.workspaceKey;
+  if (!db || !ws) return;
+  const root = db.collection('inventory').doc(ws);
+  const savedAt = getLocalSavedAt() || new Date().toISOString();
+
+  let batch = db.batch();
+  let n = 0;
+  const addSet = (ref, data) => {
+    batch.set(ref, toFirestoreSafe(data));
+    n++;
+  };
+  const flushIfNeeded = async () => {
+    if (n >= 450) {
+      await batch.commit();
+      batch = db.batch();
+      n = 0;
+    }
+  };
+
+  for (const s of sales) {
+    addSet(root.collection('sales').doc(s.id), { ...s });
+    await flushIfNeeded();
+  }
+  for (const o of orders) {
+    addSet(root.collection('orders').doc(o.id), { ...o });
+    await flushIfNeeded();
+  }
+  for (const item of openingInventory) {
+    const q = getReceivedQty(item.id);
+    addSet(root.collection('arrivals').doc(item.id), { qty: q });
+    await flushIfNeeded();
+  }
+  for (const row of samplesCatalog) {
+    addSet(root.collection('products').doc(row.id), { ...row });
+    await flushIfNeeded();
+  }
+  addSet(root.collection('payments').doc('summary'), { ...payments });
+  await flushIfNeeded();
+  addSet(root.collection('settings').doc('meta'), {
+    version: 6,
+    savedAt,
+    schema: 'vipo_inventory_v1'
+  });
+  if (n > 0) await batch.commit();
+
+  const saleIds = new Set(sales.map(s => s.id));
+  const orderIds = new Set(orders.map(o => o.id));
+  const productIds = new Set(samplesCatalog.map(r => r.id));
+  await pruneCollectionNotIn(db, root.collection('sales'), saleIds);
+  await pruneCollectionNotIn(db, root.collection('orders'), orderIds);
+  await pruneCollectionNotIn(db, root.collection('products'), productIds);
+}
+
 function getVipoCloudDocumentPayload() {
   return {
     version: 5,
@@ -611,7 +886,7 @@ async function ensureFirebaseAnonymousAuth() {
 }
 
 async function runVipoCloudPush() {
-  if (!vipoCloudCtx.enabled || !vipoCloudCtx.docRef || vipoApplyingRemote) return;
+  if (!vipoCloudCtx.enabled || !vipoCloudCtx.workspaceKey || vipoApplyingRemote) return;
   if (!navigator.onLine) {
     vipoCloudCtx.pendingWhileOffline = true;
     setVipoSyncState('offline');
@@ -625,7 +900,7 @@ async function runVipoCloudPush() {
   vipoCloudCtx.lastLocalPushAt = Date.now();
   setVipoSyncState('syncing');
   try {
-    await vipoCloudCtx.docRef.set(getVipoCloudDocumentPayload());
+    await pushFullInventoryState();
     vipoCloudCtx.pendingWhileOffline = false;
     setVipoSyncState('saved');
     clearTimeout(vipoSyncSavedTimer);
@@ -650,7 +925,7 @@ function scheduleVipoCloudPush() {
 
 /** דחיפה מיידית לפני סגירת טאב/רקע */
 function flushVipoCloudPushNow() {
-  if (!vipoCloudCtx.enabled || !vipoCloudCtx.docRef || vipoApplyingRemote) return;
+  if (!vipoCloudCtx.enabled || !vipoCloudCtx.workspaceKey || vipoApplyingRemote) return;
   clearTimeout(vipoCloudCtx.pushTimer);
   vipoCloudCtx.pushTimer = null;
   void runVipoCloudPush();
@@ -894,6 +1169,7 @@ async function initVipoCloudSync() {
   const cfg = window.VIPO_FIREBASE;
   if (!cfg?.apiKey || !cfg?.projectId) {
     vipoCloudCtx.enabled = false;
+    clearCloudUnsubs();
     setVipoSyncState('no_config');
     updateVipoCloudHint();
     return;
@@ -913,46 +1189,34 @@ async function initVipoCloudSync() {
 
     const db = firebase.firestore();
     vipoCloudCtx.db = db;
-    vipoCloudCtx.docRef = db.collection('vipo_state').doc(VIPO_FIRESTORE_DOC_ID);
-    vipoCloudCtx.enabled = true;
+    const ws = await deriveVipoWorkspaceKey(VIPO_ACCESS_PIN);
+    vipoCloudCtx.workspaceKey = ws;
 
-    const snap = await vipoCloudCtx.docRef.get();
-    if (snap.exists) {
-      const data = snap.data();
-      const remote = String(data.savedAt || '');
+    const legacyRef = db.collection('vipo_state').doc('1985');
+    const [hadNewStructure, legacySnap] = await Promise.all([hydrateInventoryFromServer(db, ws), legacyRef.get()]);
+
+    if (!hadNewStructure && legacySnap.exists) {
+      applyVipoCloudDocument(legacySnap.data());
+      vipoCloudCtx.lastLocalPushAt = Date.now();
+      await pushFullInventoryState();
+      showToast('הועבר מבנה ישן לענן — מבנה מסמכים מעודכן', 3600);
+    } else if (!hadNewStructure) {
+      vipoCloudCtx.lastLocalPushAt = Date.now();
+      await pushFullInventoryState();
+    } else {
+      const remote = String(vipoRemoteCache.meta?.savedAt || '');
       const local = getLocalSavedAt();
       if (remote && (!local || remote > local)) {
-        applyVipoCloudDocument(data);
+        applyFromRemoteCachesFull();
         showToast('נטענו נתונים מהענן', 2400);
       } else if (local && remote && local > remote) {
         vipoCloudCtx.lastLocalPushAt = Date.now();
-        await vipoCloudCtx.docRef.set(getVipoCloudDocumentPayload());
+        await pushFullInventoryState();
       }
-    } else {
-      vipoCloudCtx.lastLocalPushAt = Date.now();
-      await vipoCloudCtx.docRef.set(getVipoCloudDocumentPayload());
     }
 
-    if (vipoCloudCtx.unsub) vipoCloudCtx.unsub();
-    vipoCloudCtx.unsub = vipoCloudCtx.docRef.onSnapshot(
-      docSnap => {
-        if (!docSnap.exists || vipoApplyingRemote) return;
-        if (Date.now() - vipoCloudCtx.lastLocalPushAt < 1200) return;
-        const data = docSnap.data();
-        const remote = String(data.savedAt || '');
-        const local = getLocalSavedAt();
-        if (remote && (!local || remote > local)) {
-          applyVipoCloudDocument(data);
-          showToast('עודכנו נתונים ממכשיר אחר', 2600);
-          if (navigator.onLine) setVipoSyncState('connected');
-        }
-      },
-      err => {
-        console.error(err);
-        setVipoSyncState('error');
-        showToast('שגיאה בקריאת הענן — בודקים שוב או עובדים במצב מקומי', 4500);
-      }
-    );
+    wireInventoryCloudListeners(db, ws);
+    vipoCloudCtx.enabled = true;
 
     if (!navigator.onLine) {
       setVipoSyncState('offline');
@@ -963,7 +1227,9 @@ async function initVipoCloudSync() {
   } catch (e) {
     console.error(e);
     vipoCloudCtx.enabled = false;
-    vipoCloudCtx.docRef = null;
+    vipoCloudCtx.workspaceKey = null;
+    vipoCloudCtx.rootRef = null;
+    clearCloudUnsubs();
     const msg = String(e?.message || e || '');
     const hint =
       msg.includes('auth/operation-not-allowed') || msg.includes('anonymous')
