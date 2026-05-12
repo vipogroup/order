@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=mobile-step1" />
+  <link rel="stylesheet" href="css/styles.css?v=mobile-step2" />
   <script>
     (function () {
       try {
@@ -21,6 +21,8 @@
   </script>
 </head>
 <body class="app-body">
+  <!-- מובייל: פתיחת תפריט (ללא שינוי ב-app.js — סגירה ב-inline אחרי לחיצה) -->
+  <input type="checkbox" id="vipo-mobile-nav-cb" class="vipo-mobile-nav__state" autocomplete="off" aria-hidden="true" />
   <div
     id="accessGate"
     class="access-gate"
@@ -52,6 +54,13 @@
   </div>
 
   <header class="app-top">
+    <label for="vipo-mobile-nav-cb" class="mobile-nav__backdrop" aria-hidden="true"></label>
+    <div class="app-top__mobile-shell">
+      <label for="vipo-mobile-nav-cb" class="mobile-nav__burger" aria-label="פתיחת תפריט ניווט">
+        <span class="mobile-nav__burger-lines" aria-hidden="true"></span>
+      </label>
+      <p class="app-top__mobile-title"><span class="app-top__mobile-title-brand">VIPO</span> מלאי · הזמנות</p>
+    </div>
     <div class="app-top__inner">
       <div class="app-top__lead">
         <span class="brand-mark" aria-hidden="true">V</span>
@@ -74,6 +83,38 @@
         <input id="importBackupInput" type="file" accept="application/json" hidden />
       </div>
     </div>
+
+    <aside class="mobile-nav__drawer" aria-label="תפריט מובייל">
+      <div class="mobile-nav__drawer-head">
+        <span class="mobile-nav__drawer-title">תפריט</span>
+        <label for="vipo-mobile-nav-cb" class="mobile-nav__drawer-close" aria-label="סגירת תפריט">×</label>
+      </div>
+      <nav class="mobile-nav__list" aria-label="מעבר בין מסכים">
+        <button type="button" class="app-nav__btn app-nav__btn--mobile" data-panel="dashboard" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">סקירה</button>
+        <button type="button" class="app-nav__btn app-nav__btn--nissim app-nav__btn--mobile" data-panel="nissim" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">ניסים</button>
+        <button type="button" class="app-nav__btn app-nav__btn--doron app-nav__btn--mobile" data-panel="doron" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">דורון</button>
+        <button type="button" class="app-nav__btn app-nav__btn--mobile" data-panel="received" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">מה הגיע</button>
+        <button type="button" class="app-nav__btn app-nav__btn--mobile" data-panel="gaps" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">פערים</button>
+        <button type="button" class="app-nav__btn app-nav__btn--mobile" data-panel="orders" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">הזמנות</button>
+        <button type="button" class="app-nav__btn app-nav__btn--mobile" data-panel="sales" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">מכירות</button>
+        <button type="button" class="app-nav__btn app-nav__btn--mobile" data-panel="samples" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">דוגמאות</button>
+        <button type="button" class="app-nav__btn app-nav__btn--mobile" data-panel="payments" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">תשלומים</button>
+      </nav>
+      <div class="mobile-nav__section">
+        <p class="mobile-nav__section-label">קובץ</p>
+        <label class="btn btn--small btn--outline-light mobile-nav__full file-btn" for="importBackupInput" onclick="document.getElementById('vipo-mobile-nav-cb').checked=false;">יבוא JSON</label>
+        <button type="button" class="btn btn--small btn--outline-light mobile-nav__full" onclick="document.getElementById('exportBackupBtn').click(); document.getElementById('vipo-mobile-nav-cb').checked=false;">יצוא JSON</button>
+        <button type="button" class="btn btn--small btn--primary mobile-nav__full" onclick="document.getElementById('printReportBtn').click(); document.getElementById('vipo-mobile-nav-cb').checked=false;">הדפס דוח</button>
+      </div>
+      <div class="mobile-nav__section">
+        <p class="mobile-nav__section-label">ענן</p>
+        <button type="button" class="btn btn--small mobile-nav__full" onclick="document.getElementById('cloudSyncSetupBtn').click(); document.getElementById('vipo-mobile-nav-cb').checked=false;">חשבון ענן / שיתוף</button>
+      </div>
+      <div class="mobile-nav__section mobile-nav__section--danger">
+        <p class="mobile-nav__section-label">מערכת</p>
+        <button type="button" class="btn btn--small mobile-nav__full" onclick="document.getElementById('accessLogoutBtn').click(); document.getElementById('vipo-mobile-nav-cb').checked=false;">נעילה (קוד כניסה)</button>
+      </div>
+    </aside>
   </header>
 
   <div id="localOnlyBanner" class="local-only-banner" role="status" hidden>
