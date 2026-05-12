@@ -15,7 +15,13 @@ const vipoCloudCtx = {
   workspaceKey: null,
   rootRef: null,
   lastLocalPushAt: 0,
-  pendingWhileOffline: false
+  pendingWhileOffline: false,
+  /** אחרי hydrate ראשון + החלטת merge — עד אז אסור לדחוף לענן (מונע דריסת ענן ממכשיר עם savedAt “רעיל” לפני סנכרון) */
+  cloudHydrated: false,
+  initialSnapshotLoaded: false,
+  suppressCloudPush: true,
+  cloudPushUnlocked: false,
+  lastServerSavedAt: ''
 };
 
 const vipoRemoteCache = {
@@ -515,6 +521,34 @@ function getLocalSavedAt() {
   }
 }
 
+/** לוג סנכרון — ללא סודות; localStorage vipo_debug_cloud=1 */
+function vipoCloudLog(msg, detail) {
+  try {
+    if (localStorage.getItem('vipo_debug_cloud') !== '1') return;
+    if (detail !== undefined) console.log('[VIPO cloud]', msg, detail);
+    else console.log('[VIPO cloud]', msg);
+  } catch (_) {
+    /* */
+  }
+}
+
+/** אין מכירות/הזמנות/“מה הגיע” מותאם — תוצאת init/save לפני ענן לא צריכה לנצח את הענן ב-timestamp */
+function localLacksUserInventoryActivity() {
+  return (
+    sales.length === 0 &&
+    orders.length === 0 &&
+    Object.keys(receivedByItemId || {}).length === 0
+  );
+}
+
+function resetVipoCloudSessionFlags() {
+  vipoCloudCtx.cloudHydrated = false;
+  vipoCloudCtx.initialSnapshotLoaded = false;
+  vipoCloudCtx.suppressCloudPush = true;
+  vipoCloudCtx.cloudPushUnlocked = false;
+  vipoCloudCtx.lastServerSavedAt = '';
+}
+
 function resetRemoteCache() {
   vipoRemoteCache.meta = null;
   vipoRemoteCache.sales = new Map();
@@ -609,16 +643,32 @@ async function tryApplyRemoteFromCaches() {
   const local = getLocalSavedAt();
   if (remote && remote > local) {
     applyFromRemoteCachesFull();
+    vipoCloudLog('snapshot applied', { via: 'tryApplyRemoteFromCaches', reason: 'remote-newer' });
+    if (navigator.onLine) setVipoSyncState('connected');
+    showToast('עודכנו נתונים ממכשיר אחר', 2600);
+  } else if (
+    localLacksUserInventoryActivity() &&
+    remote &&
+    local &&
+    local > remote &&
+    buildRemoteCloudPayload()
+  ) {
+    applyFromRemoteCachesFull();
+    vipoCloudLog('snapshot applied', { via: 'tryApplyRemoteFromCaches', reason: 'local-ts-poison-empty-rows' });
     if (navigator.onLine) setVipoSyncState('connected');
     showToast('עודכנו נתונים ממכשיר אחר', 2600);
   }
 }
 
 async function hydrateInventoryFromServer(db, ws) {
+  vipoCloudLog('hydrate started');
   resetRemoteCache();
   const root = db.collection('inventory').doc(ws);
   const metaSnap = await root.collection('settings').doc('meta').get();
-  if (!metaSnap.exists) return false;
+  if (!metaSnap.exists) {
+    vipoCloudLog('hydrate completed', { hasMeta: false });
+    return false;
+  }
   vipoRemoteCache.meta = metaSnap.data();
   const [salesSn, ordSn, arrSn, paySn, prodSn] = await Promise.all([
     root.collection('sales').get(),
@@ -640,6 +690,7 @@ async function hydrateInventoryFromServer(db, ws) {
   prodSn.forEach(d => {
     if (d.exists) vipoRemoteCache.products.set(d.id, { ...d.data(), id: d.id });
   });
+  vipoCloudLog('hydrate completed', { hasMeta: true });
   return true;
 }
 
@@ -890,6 +941,13 @@ function vipoTranslateFirebaseAuthError(e) {
 
 async function runVipoCloudPush() {
   if (!vipoCloudCtx.enabled || !vipoCloudCtx.workspaceKey || vipoApplyingRemote) return;
+  if (!vipoCloudCtx.cloudPushUnlocked || vipoCloudCtx.suppressCloudPush) {
+    vipoCloudLog('push skipped before hydrate', {
+      unlocked: vipoCloudCtx.cloudPushUnlocked,
+      suppress: vipoCloudCtx.suppressCloudPush
+    });
+    return;
+  }
   if (!navigator.onLine) {
     vipoCloudCtx.pendingWhileOffline = true;
     setVipoSyncState('offline');
@@ -902,6 +960,7 @@ async function runVipoCloudPush() {
   vipoOfflineToastShown = false;
   vipoCloudCtx.lastLocalPushAt = Date.now();
   setVipoSyncState('syncing');
+  vipoCloudLog('push allowed', { via: 'runVipoCloudPush' });
   try {
     await pushFullInventoryState();
     vipoCloudCtx.pendingWhileOffline = false;
@@ -922,6 +981,10 @@ async function runVipoCloudPush() {
 
 function scheduleVipoCloudPush() {
   if (!vipoCloudCtx.enabled || vipoApplyingRemote) return;
+  if (!vipoCloudCtx.cloudPushUnlocked || vipoCloudCtx.suppressCloudPush) {
+    vipoCloudLog('push skipped before hydrate', { via: 'scheduleVipoCloudPush' });
+    return;
+  }
   clearTimeout(vipoCloudCtx.pushTimer);
   vipoCloudCtx.pushTimer = setTimeout(() => {
     void runVipoCloudPush();
@@ -931,6 +994,10 @@ function scheduleVipoCloudPush() {
 /** דחיפה מיידית לפני סגירת טאב/רקע */
 function flushVipoCloudPushNow() {
   if (!vipoCloudCtx.enabled || !vipoCloudCtx.workspaceKey || vipoApplyingRemote) return;
+  if (!vipoCloudCtx.cloudPushUnlocked || vipoCloudCtx.suppressCloudPush) {
+    vipoCloudLog('push skipped before hydrate', { via: 'flushVipoCloudPushNow' });
+    return;
+  }
   clearTimeout(vipoCloudCtx.pushTimer);
   vipoCloudCtx.pushTimer = null;
   void runVipoCloudPush();
@@ -1203,12 +1270,14 @@ async function onFirebaseAuthStateChangedForVipo(user) {
     } catch (e) {
       console.error(e);
     }
+    resetVipoCloudSessionFlags();
     return;
   }
 
   if (!user || !user.email) {
     vipoLastBoundCloudUid = null;
     clearCloudUnsubs();
+    resetVipoCloudSessionFlags();
     vipoCloudCtx.enabled = false;
     vipoCloudCtx.workspaceKey = null;
     vipoCloudCtx.rootRef = null;
@@ -1245,24 +1314,49 @@ async function onFirebaseAuthStateChangedForVipo(user) {
   setVipoSyncState('user_connected', `מחובר: ${maskEmail(user.email)}`);
 
   try {
-    const hadNewStructure = await hydrateInventoryFromServer(vipoCloudCtx.db, uid);
-    if (!hadNewStructure) {
+    resetVipoCloudSessionFlags();
+
+    const hadMeta = await hydrateInventoryFromServer(vipoCloudCtx.db, uid);
+
+    if (!hadMeta) {
       vipoCloudCtx.lastLocalPushAt = Date.now();
       await pushFullInventoryState();
+      vipoCloudLog('push allowed', { via: 'authFlow', reason: 'seed-no-meta-doc' });
     } else {
       const remote = String(vipoRemoteCache.meta?.savedAt || '');
       const local = getLocalSavedAt();
-      if (remote && (!local || remote > local)) {
+      const lacks = localLacksUserInventoryActivity();
+
+      vipoCloudLog('merge after hydrate', { hasMeta: true, lacks, hasLocalTs: !!local, hasRemoteTs: !!remote });
+
+      if (lacks) {
         applyFromRemoteCachesFull();
         showToast('נטענו נתונים מהענן', 2400);
+        vipoCloudLog('snapshot applied', { via: 'authFlow', reason: 'local-no-user-rows' });
+      } else if (remote && (!local || remote > local)) {
+        applyFromRemoteCachesFull();
+        showToast('נטענו נתונים מהענן', 2400);
+        vipoCloudLog('snapshot applied', { via: 'authFlow', reason: 'remote-newer-or-no-local' });
       } else if (local && remote && local > remote) {
         vipoCloudCtx.lastLocalPushAt = Date.now();
         await pushFullInventoryState();
+        vipoCloudLog('push allowed', { via: 'authFlow', reason: 'local-newer-with-rows' });
+      } else {
+        applyFromRemoteCachesFull();
+        showToast('נטענו נתונים מהענן', 2400);
+        vipoCloudLog('snapshot applied', { via: 'authFlow', reason: 'fallback-prefer-remote' });
       }
     }
 
     wireInventoryCloudListeners(vipoCloudCtx.db, uid);
     vipoCloudCtx.enabled = true;
+
+    vipoCloudCtx.lastServerSavedAt = String(vipoRemoteCache.meta?.savedAt || '');
+    vipoCloudCtx.initialSnapshotLoaded = true;
+    vipoCloudCtx.cloudHydrated = true;
+    vipoCloudCtx.suppressCloudPush = false;
+    vipoCloudCtx.cloudPushUnlocked = true;
+    vipoCloudLog('hydrate gate open', { cloudHydrated: true, pushUnlocked: true });
 
     if (!navigator.onLine) setVipoSyncState('offline');
     else setVipoSyncState('connected');
@@ -1270,6 +1364,7 @@ async function onFirebaseAuthStateChangedForVipo(user) {
     updateVipoCloudHint();
   } catch (e) {
     console.error(e);
+    resetVipoCloudSessionFlags();
     vipoCloudCtx.enabled = false;
     vipoCloudCtx.workspaceKey = null;
     vipoCloudCtx.rootRef = null;
@@ -1288,6 +1383,7 @@ async function initVipoCloudSync() {
   if (!cfg?.apiKey || !cfg?.projectId) {
     vipoCloudCtx.enabled = false;
     clearCloudUnsubs();
+    resetVipoCloudSessionFlags();
     setVipoSyncState('no_config');
     updateVipoCloudHint();
     return;
