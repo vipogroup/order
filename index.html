@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=13" />
+  <link rel="stylesheet" href="css/styles.css?v=14" />
   <script>
     (function () {
       try {
@@ -79,8 +79,7 @@
   <div id="localOnlyBanner" class="local-only-banner" role="status" hidden>
     <div class="local-only-banner__inner">
       <p class="local-only-banner__text">
-        <strong>אין חיבור ל־Firebase.</strong> GitHub לא שומר את המלאי — רק את קבצי האתר. בלי Firebase, שינויים (כמויות וכו׳) נשארים רק במכשיר הזה.
-        <strong>לרוב טלפונים עם רק קוד 1985:</strong> ממלאים פעם אחת את <code>js/firebase-config.js</code> בגיט ומפרסמים; אחרי זה בכל מכשיר רק הכניסה עם הקוד.
+        <strong>אין חיבור ל־Firebase.</strong> GitHub לא שומר את המלאי — רק את קבצי האתר. יש למלא את <code>js/firebase-config.js</code> בפרויקט (ערכי Web מה־Console), לפרסם, ואז להתחבר עם <strong>אימייל וסיסמה</strong> בכל מכשיר.
       </p>
       <button type="button" class="btn btn--small btn--primary" id="localOnlyOpenSyncBtn">הגדרת שיתוף לענן</button>
     </div>
@@ -744,42 +743,36 @@
 
   <div id="appToast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-  <dialog id="cloudSyncDialog" class="cloud-sync-dialog" aria-labelledby="cloudSyncTitle">
+  <dialog id="firebaseAuthDialog" class="cloud-sync-dialog" aria-labelledby="firebaseAuthTitle">
     <div class="cloud-sync-dialog__inner">
-      <button type="button" class="cloud-sync-dialog__x" id="cloudSyncCloseX" aria-label="סגירה">×</button>
-      <h2 id="cloudSyncTitle" class="cloud-sync-dialog__title">שיתוף נתונים בין מכשירים</h2>
+      <button type="button" class="cloud-sync-dialog__x" id="firebaseAuthCloseX" aria-label="סגירה">×</button>
+      <h2 id="firebaseAuthTitle" class="cloud-sync-dialog__title">התחברות לענן (Firebase)</h2>
       <p class="cloud-sync-dialog__lead">
-        כדי שעדכון כמויות במלאי יופיע גם בטלפון אחר, הנתונים חייבים לשבת ב<strong>ענן נפרד</strong> — לא ב־GitHub.
-        GitHub כאן רק מארח את <strong>קבצי האתר</strong>; את המלאי והמכירות שומרים ב־<strong>Firebase</strong> (חינמי לרמה בסיסית).
+        הסנכרון בין מכשירים מתבצע לפי <strong>אותו חשבון אימייל</strong> (מלאי ומכירות תחת המשתמש המחובר). הקוד בכניסה למערכת נשאר שכבת UX בלבד.
       </p>
-      <div class="cloud-sync-dialog__explain">
-        <p><strong>למה לא "יישמר בגיט" אוטומטית?</strong> דפדפן לא יכול לדחוף שינויי מלאי ישירות לריפו בצורה בטוחה ופשוטה. לכן משתמשים ב־Firebase: הוא המקום שבו כל המכשירים קוראים וכותבים את אותו מצב.</p>
-        <p><strong>מה צריך כדי שרק יזינו 1985 בכל טלפון?</strong> למלא את הקובץ <code>js/firebase-config.js</code> בפרויקט (פעם אחת), לעשות commit ו־push ל־GitHub. אחרי פריסה, כל מי שנכנס לקישור כבר מחובר לענן — ורק מקלידים את קוד הכניסה לאפליקציה.</p>
+      <div id="firebaseAuthFormPanel">
+        <label class="cloud-sync-dialog__label" for="firebaseAuthEmail">אימייל</label>
+        <input id="firebaseAuthEmail" class="access-gate__input" type="email" autocomplete="username" dir="ltr" />
+        <label class="cloud-sync-dialog__label" for="firebaseAuthPassword">סיסמה</label>
+        <input id="firebaseAuthPassword" class="access-gate__input" type="password" autocomplete="current-password" dir="ltr" />
+        <p id="firebaseAuthError" class="cloud-sync-dialog__error" hidden></p>
+        <div class="cloud-sync-dialog__actions">
+          <button type="button" class="btn btn--small btn--primary" id="firebaseAuthSignInBtn">כניסה</button>
+          <button type="button" class="btn btn--small" id="firebaseAuthSignUpBtn">יצירת חשבון</button>
+          <button type="button" class="btn btn--small btn--outline-light" id="firebaseAuthCancelBtn">סגור</button>
+        </div>
       </div>
-      <ol class="cloud-sync-dialog__steps">
-        <li>נכנסים ל־<a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">Firebase Console</a> → יוצרים פרויקט.</li>
-        <li>בוחרים <strong>Firestore Database</strong> → יוצרים מסד (Production או Test).</li>
-        <li>גלגל השיניים → <strong>Project settings</strong> → בוחרים אפליקציית Web → מעתיקים את בלוק ה־<code>firebaseConfig</code> (אובייקט JSON).</li>
-        <li><strong>Authentication</strong> → Sign-in method → הפעילו <strong>Anonymous</strong> (חובה ל־Rules החדשות).</li>
-        <li>ב־Firestore → <strong>Rules</strong> — העתיקו מקובץ <code>firestore.rules</code> בשורש הפרויקט (גישה רק למשתמשים מחוברים אנונימית, לפי מפתח עבודה בן 64 תווים hex).</li>
-      </ol>
-      <pre class="cloud-sync-dialog__rules" dir="ltr">// מבנה נתונים: inventory/{workspaceKey}/sales|orders|arrivals|products|payments|settings
-// העתקה מלאה: קובץ firestore.rules בפרויקט (כולל מיגרציה מ־vipo_state/1985 אם היה בשימוש).</pre>
-      <p class="cloud-sync-dialog__note">
-        אם הקובץ <code>firebase-config.js</code> בגיט כבר מלא — אפשר להשאיר את השדה למטה ריק ולשמור (מעדכן רק מצב מקומי). אם עדיין ריק בפריסה — הדביקו JSON כאן <strong>בכל מכשיר</strong> או מלאו בגיט פעם אחת לכולם.
-      </p>
-      <label class="cloud-sync-dialog__label" for="cloudSyncJsonInput">קונפיג Firebase (JSON) — אופציונלי אם כבר מוטמע באתר</label>
-      <textarea id="cloudSyncJsonInput" class="cloud-sync-dialog__textarea" rows="8" dir="ltr" placeholder='{ "apiKey": "...", "authDomain": "...", ... }'></textarea>
-      <p id="cloudSyncError" class="cloud-sync-dialog__error" hidden></p>
-      <div class="cloud-sync-dialog__actions">
-        <button type="button" class="btn btn--small btn--primary" id="cloudSyncSaveBtn">שמירה והפעלה מחדש</button>
-        <button type="button" class="btn btn--small" id="cloudSyncClearBtn">ביטול שיתוף (מחיקה ממכשיר זה)</button>
-        <button type="button" class="btn btn--small btn--outline-light" id="cloudSyncCancelBtn">סגור</button>
+      <div id="firebaseAuthSignedPanel" hidden>
+        <p class="cloud-sync-dialog__note">מחוברים כ־<strong id="firebaseAuthSignedEmail"></strong></p>
+        <div class="cloud-sync-dialog__actions">
+          <button type="button" class="btn btn--small btn--danger" id="firebaseAuthSignOutBtn">התנתקות מהענן</button>
+          <button type="button" class="btn btn--small btn--outline-light" id="firebaseAuthSignedCloseBtn">סגור</button>
+        </div>
       </div>
     </div>
   </dialog>
 
-  <script src="js/firebase-config.js?v=7"></script>
-  <script src="js/app.js?v=19"></script>
+  <script src="js/firebase-config.js?v=8"></script>
+  <script src="js/app.js?v=20"></script>
 </body>
 </html>

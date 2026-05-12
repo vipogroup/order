@@ -5,9 +5,6 @@ const STORAGE_KEY_SAMPLES = 'vipo_samples_catalog_v1';
 /** כניסה לממשק — בלי קוד אין גישה (נשמר לטאב בלבד ב־sessionStorage) */
 const VIPO_ACCESS_PIN = '1985';
 const VIPO_GATE_SESSION_KEY = 'VIPO_GATE_OK';
-/** מפתח עבודה ב־Firestore: SHA-256(קוד_הגישה|salt) — אותו קוד כניסה = אותו מסלול נתונים */
-const VIPO_WORKSPACE_SALT = 'vipo-order-sharing-v1';
-
 /** סנכרון ענן (Firestore); כבוי כש־firebase-config ללא apiKey */
 let vipoApplyingRemote = false;
 const vipoCloudCtx = {
@@ -30,6 +27,15 @@ const vipoRemoteCache = {
   products: new Map()
 };
 let vipoRemoteMergeTimer = null;
+let vipoFirebaseAuthUnsub = null;
+let vipoLastBoundCloudUid = null;
+
+function maskEmail(email) {
+  const e = String(email || '');
+  const at = e.indexOf('@');
+  if (at <= 0) return e ? '***' : '';
+  return e.slice(0, 1) + '***' + e.slice(at);
+}
 
 /** debounce לדחיפה לענן (0 = מיידי אחרי אותו tick) */
 const VIPO_CLOUD_PUSH_DEBOUNCE_MS = 0;
@@ -509,15 +515,6 @@ function getLocalSavedAt() {
   }
 }
 
-async function deriveVipoWorkspaceKey(accessPin) {
-  const pin = String(accessPin || '').trim();
-  if (!pin) throw new Error('no-workspace-pin');
-  if (!globalThis.crypto?.subtle?.digest) throw new Error('crypto-unavailable');
-  const text = pin + '|' + VIPO_WORKSPACE_SALT;
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 function resetRemoteCache() {
   vipoRemoteCache.meta = null;
   vipoRemoteCache.sales = new Map();
@@ -652,7 +649,9 @@ function wireInventoryCloudListeners(db, ws) {
   vipoCloudCtx.rootRef = root;
   const onListenErr = err => {
     console.error(err);
-    setVipoSyncState('error');
+    const code = String(err?.code || '');
+    if (code.includes('permission')) setVipoSyncState('permission_error');
+    else setVipoSyncState('error');
     showToast('שגיאה בקריאת הענן — נמשיך עם מטמון מקומי', 4500);
   };
 
@@ -863,26 +862,30 @@ function setVipoSyncState(next, customText) {
   bar.className = 'vipo-sync-bar vipo-sync-bar--' + next;
   const labels = {
     init: 'בודק חיבור…',
-    no_config: 'אין חיבור לענן — נדרש Firebase',
+    no_config: 'אין קונפיג Firebase — מלאו את js/firebase-config.js',
     connecting: 'מתחבר לענן…',
+    not_logged_in: 'לא מחובר לענן',
+    auth_required: 'התחברות נדרשת (אימייל וסיסמה)',
+    user_connected: 'מחובר כמשתמש',
     connected: 'מחובר לענן',
     syncing: 'מסנכרן…',
     saved: 'נשמר בענן',
     offline: 'אין אינטרנט — נשמר מקומית, יסונכרן בחזרה',
     error: 'שגיאת סנכרון',
+    permission_error: 'שגיאת הרשאות — בדקו Rules ב־Firebase',
     local_only: 'מקומי בלבד (ללא ענן)'
   };
   txt.textContent = customText || labels[next] || next;
 }
 
-async function ensureFirebaseAnonymousAuth() {
-  if (typeof firebase === 'undefined' || !firebase.auth) {
-    throw new Error('firebase-auth-missing');
-  }
-  const auth = firebase.auth();
-  if (!auth.currentUser) {
-    await auth.signInAnonymously();
-  }
+function vipoTranslateFirebaseAuthError(e) {
+  const code = String(e?.code || '');
+  if (code.includes('wrong-password') || code.includes('invalid-credential')) return 'אימייל או סיסמה שגויים.';
+  if (code.includes('user-not-found')) return 'לא נמצא משתמש — אפשר ליצור חשבון.';
+  if (code.includes('email-already-in-use')) return 'האימייל כבר רשום — נסו כניסה.';
+  if (code.includes('weak-password')) return 'סיסמה חלשה מדי (Firebase דורש חוזק מינימלי).';
+  if (code.includes('invalid-email')) return 'כתובת אימייל לא תקינה.';
+  return 'פעולת התחברות נכשלה. נסו שוב.';
 }
 
 async function runVipoCloudPush() {
@@ -910,7 +913,9 @@ async function runVipoCloudPush() {
   } catch (e) {
     console.error(e);
     vipoCloudCtx.pendingWhileOffline = true;
-    setVipoSyncState('error');
+    const code = String(e?.code || '');
+    if (code.includes('permission')) setVipoSyncState('permission_error');
+    else setVipoSyncState('error');
     showToast('שמירה לענן נכשלה — הנתונים במטמון המקומי; ננסה שוב כשיהיה חיבור.', 5200);
   }
 }
@@ -962,16 +967,23 @@ function wireVipoOnlineOffline() {
 function updateLocalOnlyBanner() {
   const b = document.getElementById('localOnlyBanner');
   if (!b) return;
-  b.hidden = !!vipoCloudCtx.enabled;
+  const cfg = window.VIPO_FIREBASE;
+  const hasCfg = !!(cfg?.apiKey && cfg?.projectId);
+  b.hidden = hasCfg;
 }
 
 function updateVipoCloudHint() {
   const el = document.getElementById('vipoCloudHint');
   const setupBtn = document.getElementById('cloudSyncSetupBtn');
+  const cfg = window.VIPO_FIREBASE;
+  const hasCfg = !!(cfg?.apiKey && cfg?.projectId);
   if (el) {
     if (vipoCloudCtx.enabled) {
       el.hidden = false;
       el.textContent = 'סנכרון ענן פעיל — ראו סטטוס למעלה';
+    } else if (hasCfg) {
+      el.hidden = false;
+      el.textContent = 'Firebase מוגדר — יש להתחבר עם אימייל וסיסמה לסנכרון בין מכשירים.';
     } else {
       el.hidden = true;
       el.textContent = '';
@@ -979,130 +991,146 @@ function updateVipoCloudHint() {
   }
   if (setupBtn) {
     setupBtn.hidden = false;
-    setupBtn.textContent = vipoCloudCtx.enabled
-      ? 'ניהול שיתוף נתונים'
-      : 'שיתוף נתונים בין מכשירים (הפעלה)';
+    if (!hasCfg) setupBtn.textContent = 'הגדרת ענן (חסר קונפיג)';
+    else if (vipoCloudCtx.enabled) setupBtn.textContent = 'חשבון ענן';
+    else setupBtn.textContent = 'התחברות לענן';
   }
   updateLocalOnlyBanner();
 }
 
-function getFirebaseStorageKey() {
-  return window.VIPO_FIREBASE_STORAGE_KEY || 'VIPO_FIREBASE_CONFIG';
-}
-
-function normalizeFirebaseWebConfig(o) {
-  return {
-    apiKey: String(o.apiKey || ''),
-    authDomain: String(o.authDomain || ''),
-    projectId: String(o.projectId || ''),
-    storageBucket: String(o.storageBucket || ''),
-    messagingSenderId: String(o.messagingSenderId || ''),
-    appId: String(o.appId || '')
-  };
-}
-
-function parseFirebaseConfigPaste(raw) {
-  const s = String(raw || '').trim();
-  if (!s) return null;
-  const tryParse = str => {
-    try {
-      const o = JSON.parse(str);
-      if (o && typeof o === 'object' && o.apiKey && o.projectId) return normalizeFirebaseWebConfig(o);
-    } catch (_) {
-      /* continue */
-    }
-    return null;
-  };
-  let cfg = tryParse(s);
-  if (cfg) return cfg;
-  const i = s.indexOf('{');
-  const j = s.lastIndexOf('}');
-  if (i >= 0 && j > i) cfg = tryParse(s.slice(i, j + 1));
-  return cfg;
-}
-
-function closeCloudSyncDialog() {
-  const d = document.getElementById('cloudSyncDialog');
+function closeFirebaseAuthDialog() {
+  const d = document.getElementById('firebaseAuthDialog');
   if (d && typeof d.close === 'function' && d.open) d.close();
 }
 
-function openCloudSyncDialog() {
-  const d = document.getElementById('cloudSyncDialog');
-  const ta = document.getElementById('cloudSyncJsonInput');
-  const err = document.getElementById('cloudSyncError');
+function refreshFirebaseAuthDialogPanels() {
+  const formP = document.getElementById('firebaseAuthFormPanel');
+  const signedP = document.getElementById('firebaseAuthSignedPanel');
+  const emailSpan = document.getElementById('firebaseAuthSignedEmail');
+  let u = null;
+  try {
+    u = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth().currentUser : null;
+  } catch (_) {
+    /* */
+  }
+  if (!formP || !signedP) return;
+  if (u && !u.isAnonymous && u.email) {
+    formP.hidden = true;
+    signedP.hidden = false;
+    if (emailSpan) emailSpan.textContent = maskEmail(u.email);
+  } else {
+    formP.hidden = false;
+    signedP.hidden = true;
+  }
+}
+
+function openFirebaseAuthDialog() {
+  const d = document.getElementById('firebaseAuthDialog');
+  const err = document.getElementById('firebaseAuthError');
+  const pw = document.getElementById('firebaseAuthPassword');
   if (err) {
     err.hidden = true;
     err.textContent = '';
   }
-  if (ta) {
-    try {
-      const saved = localStorage.getItem(getFirebaseStorageKey());
-      ta.value = saved || '';
-    } catch (_) {
-      ta.value = '';
-    }
-  }
+  if (pw) pw.value = '';
+  refreshFirebaseAuthDialogPanels();
   if (d && typeof d.showModal === 'function') d.showModal();
-  ta?.focus();
+  const em = document.getElementById('firebaseAuthEmail');
+  if (!document.getElementById('firebaseAuthSignedPanel')?.hidden) return;
+  em?.focus();
 }
 
-function initCloudSyncDialog() {
-  const d = document.getElementById('cloudSyncDialog');
-  const save = document.getElementById('cloudSyncSaveBtn');
-  const clear = document.getElementById('cloudSyncClearBtn');
-  const cancel = document.getElementById('cloudSyncCancelBtn');
-  const x = document.getElementById('cloudSyncCloseX');
+function initFirebaseAuthDialog() {
+  const d = document.getElementById('firebaseAuthDialog');
+  const x = document.getElementById('firebaseAuthCloseX');
+  const cancel = document.getElementById('firebaseAuthCancelBtn');
+  const signIn = document.getElementById('firebaseAuthSignInBtn');
+  const signUp = document.getElementById('firebaseAuthSignUpBtn');
+  const signOut = document.getElementById('firebaseAuthSignOutBtn');
+  const signedClose = document.getElementById('firebaseAuthSignedCloseBtn');
   const setup = document.getElementById('cloudSyncSetupBtn');
-  const ta = document.getElementById('cloudSyncJsonInput');
-  const err = document.getElementById('cloudSyncError');
+  const err = document.getElementById('firebaseAuthError');
 
-  setup?.addEventListener('click', () => openCloudSyncDialog());
-  document.getElementById('localOnlyOpenSyncBtn')?.addEventListener('click', () => openCloudSyncDialog());
-  x?.addEventListener('click', () => closeCloudSyncDialog());
-  cancel?.addEventListener('click', () => closeCloudSyncDialog());
+  setup?.addEventListener('click', () => openFirebaseAuthDialog());
+  document.getElementById('localOnlyOpenSyncBtn')?.addEventListener('click', () => openFirebaseAuthDialog());
+  x?.addEventListener('click', () => closeFirebaseAuthDialog());
+  cancel?.addEventListener('click', () => closeFirebaseAuthDialog());
+  signedClose?.addEventListener('click', () => closeFirebaseAuthDialog());
   d?.addEventListener('click', ev => {
-    if (ev.target === d) closeCloudSyncDialog();
+    if (ev.target === d) closeFirebaseAuthDialog();
   });
 
-  save?.addEventListener('click', () => {
-    const rawJs = String(ta?.value || '').trim();
-    if (!rawJs) {
-      try {
-        localStorage.removeItem(getFirebaseStorageKey());
-      } catch (_) {
-        /* */
+  signIn?.addEventListener('click', async () => {
+    if (typeof firebase === 'undefined' || !firebase.auth) return;
+    const email = String(document.getElementById('firebaseAuthEmail')?.value || '').trim();
+    const password = String(document.getElementById('firebaseAuthPassword')?.value || '');
+    if (err) {
+      err.hidden = true;
+      err.textContent = '';
+    }
+    if (!email || !password) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = 'נא למלא אימייל וסיסמה.';
       }
-    } else {
-      const cfg = parseFirebaseConfigPaste(rawJs);
-      if (!cfg) {
-        if (err) {
-          err.hidden = false;
-          err.textContent = 'לא הצלחנו לקרוא JSON תקין. השארו את השדה ריק אם הקונפיג כבר מוטמע באתר.';
-        }
-        return;
-      }
-      try {
-        localStorage.setItem(getFirebaseStorageKey(), JSON.stringify(cfg));
-      } catch (e) {
-        if (err) {
-          err.hidden = false;
-          err.textContent = 'שמירה בדפדפן נכשלה (למשל במצב גלישה פרטית).';
-        }
-        return;
+      return;
+    }
+    try {
+      await firebase.auth().signInWithEmailAndPassword(email, password);
+      closeFirebaseAuthDialog();
+      showToast('התחברתם לענן', 2400);
+    } catch (e) {
+      console.error(e);
+      if (err) {
+        err.hidden = false;
+        err.textContent = vipoTranslateFirebaseAuthError(e);
       }
     }
-
-    location.reload();
   });
 
-  clear?.addEventListener('click', () => {
-    if (!confirm('למחוק את הגדרת השיתוף ממכשיר זה ולחזור לשמירה מקומית בלבד?')) return;
+  signUp?.addEventListener('click', async () => {
+    if (typeof firebase === 'undefined' || !firebase.auth) return;
+    const email = String(document.getElementById('firebaseAuthEmail')?.value || '').trim();
+    const password = String(document.getElementById('firebaseAuthPassword')?.value || '');
+    if (err) {
+      err.hidden = true;
+      err.textContent = '';
+    }
+    if (!email || !password) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = 'נא למלא אימייל וסיסמה ליצירת חשבון.';
+      }
+      return;
+    }
     try {
-      localStorage.removeItem(getFirebaseStorageKey());
+      await firebase.auth().createUserWithEmailAndPassword(email, password);
+      closeFirebaseAuthDialog();
+      showToast('חשבון נוצר והתחברתם', 2800);
+    } catch (e) {
+      console.error(e);
+      if (err) {
+        err.hidden = false;
+        err.textContent = vipoTranslateFirebaseAuthError(e);
+      }
+    }
+  });
+
+  signOut?.addEventListener('click', async () => {
+    if (typeof firebase === 'undefined' || !firebase.auth) return;
+    if (!confirm('להתנתק מהענן במכשיר זה?')) return;
+    try {
+      sessionStorage.removeItem('VIPO_AUTH_DIALOG_AUTO');
     } catch (_) {
       /* */
     }
-    location.reload();
+    try {
+      await firebase.auth().signOut();
+    } catch (e) {
+      console.error(e);
+    }
+    closeFirebaseAuthDialog();
+    showToast('התנתקתם מהענן', 2200);
   });
 }
 
@@ -1165,6 +1193,96 @@ function initAccessGate() {
   queueMicrotask(() => input?.focus());
 }
 
+async function onFirebaseAuthStateChangedForVipo(user) {
+  const cfg = window.VIPO_FIREBASE;
+  if (!cfg?.apiKey || !cfg?.projectId) return;
+
+  if (user?.isAnonymous) {
+    try {
+      await firebase.auth().signOut();
+    } catch (e) {
+      console.error(e);
+    }
+    return;
+  }
+
+  if (!user || !user.email) {
+    vipoLastBoundCloudUid = null;
+    clearCloudUnsubs();
+    vipoCloudCtx.enabled = false;
+    vipoCloudCtx.workspaceKey = null;
+    vipoCloudCtx.rootRef = null;
+    try {
+      vipoCloudCtx.db = firebase.apps?.length ? firebase.firestore() : null;
+    } catch (_) {
+      vipoCloudCtx.db = null;
+    }
+    setVipoSyncState('auth_required');
+    updateVipoCloudHint();
+    try {
+      if (sessionStorage.getItem('VIPO_AUTH_DIALOG_AUTO') !== '1') {
+        sessionStorage.setItem('VIPO_AUTH_DIALOG_AUTO', '1');
+        queueMicrotask(() => openFirebaseAuthDialog());
+      }
+    } catch (_) {
+      queueMicrotask(() => openFirebaseAuthDialog());
+    }
+    return;
+  }
+
+  if (vipoLastBoundCloudUid === user.uid && vipoCloudCtx.enabled) {
+    updateVipoCloudHint();
+    if (!navigator.onLine) setVipoSyncState('offline');
+    else setVipoSyncState('connected');
+    return;
+  }
+
+  vipoLastBoundCloudUid = user.uid;
+  vipoCloudCtx.db = firebase.firestore();
+  const uid = user.uid;
+  vipoCloudCtx.workspaceKey = uid;
+
+  setVipoSyncState('user_connected', `מחובר: ${maskEmail(user.email)}`);
+
+  try {
+    const hadNewStructure = await hydrateInventoryFromServer(vipoCloudCtx.db, uid);
+    if (!hadNewStructure) {
+      vipoCloudCtx.lastLocalPushAt = Date.now();
+      await pushFullInventoryState();
+    } else {
+      const remote = String(vipoRemoteCache.meta?.savedAt || '');
+      const local = getLocalSavedAt();
+      if (remote && (!local || remote > local)) {
+        applyFromRemoteCachesFull();
+        showToast('נטענו נתונים מהענן', 2400);
+      } else if (local && remote && local > remote) {
+        vipoCloudCtx.lastLocalPushAt = Date.now();
+        await pushFullInventoryState();
+      }
+    }
+
+    wireInventoryCloudListeners(vipoCloudCtx.db, uid);
+    vipoCloudCtx.enabled = true;
+
+    if (!navigator.onLine) setVipoSyncState('offline');
+    else setVipoSyncState('connected');
+
+    updateVipoCloudHint();
+  } catch (e) {
+    console.error(e);
+    vipoCloudCtx.enabled = false;
+    vipoCloudCtx.workspaceKey = null;
+    vipoCloudCtx.rootRef = null;
+    clearCloudUnsubs();
+    const code = String(e?.code || '');
+    if (code.includes('permission'))
+      setVipoSyncState('permission_error', 'אין הרשאה לנתוני הענן — בדקו Rules ואימות.');
+    else setVipoSyncState('error');
+    showToast('שגיאה בהתחלת סנכרון הענן.', 5200);
+    updateVipoCloudHint();
+  }
+}
+
 async function initVipoCloudSync() {
   const cfg = window.VIPO_FIREBASE;
   if (!cfg?.apiKey || !cfg?.projectId) {
@@ -1185,45 +1303,20 @@ async function initVipoCloudSync() {
     }
     if (!firebase.apps.length) firebase.initializeApp(cfg);
 
-    await ensureFirebaseAnonymousAuth();
+    const auth = firebase.auth();
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-    const db = firebase.firestore();
-    vipoCloudCtx.db = db;
-    const ws = await deriveVipoWorkspaceKey(VIPO_ACCESS_PIN);
-    vipoCloudCtx.workspaceKey = ws;
-
-    const legacyRef = db.collection('vipo_state').doc('1985');
-    const [hadNewStructure, legacySnap] = await Promise.all([hydrateInventoryFromServer(db, ws), legacyRef.get()]);
-
-    if (!hadNewStructure && legacySnap.exists) {
-      applyVipoCloudDocument(legacySnap.data());
-      vipoCloudCtx.lastLocalPushAt = Date.now();
-      await pushFullInventoryState();
-      showToast('הועבר מבנה ישן לענן — מבנה מסמכים מעודכן', 3600);
-    } else if (!hadNewStructure) {
-      vipoCloudCtx.lastLocalPushAt = Date.now();
-      await pushFullInventoryState();
-    } else {
-      const remote = String(vipoRemoteCache.meta?.savedAt || '');
-      const local = getLocalSavedAt();
-      if (remote && (!local || remote > local)) {
-        applyFromRemoteCachesFull();
-        showToast('נטענו נתונים מהענן', 2400);
-      } else if (local && remote && local > remote) {
-        vipoCloudCtx.lastLocalPushAt = Date.now();
-        await pushFullInventoryState();
+    if (vipoFirebaseAuthUnsub) {
+      try {
+        vipoFirebaseAuthUnsub();
+      } catch (_) {
+        /* */
       }
+      vipoFirebaseAuthUnsub = null;
     }
-
-    wireInventoryCloudListeners(db, ws);
-    vipoCloudCtx.enabled = true;
-
-    if (!navigator.onLine) {
-      setVipoSyncState('offline');
-    } else {
-      setVipoSyncState('connected');
-    }
-    updateVipoCloudHint();
+    vipoFirebaseAuthUnsub = auth.onAuthStateChanged(u => {
+      void onFirebaseAuthStateChangedForVipo(u);
+    });
   } catch (e) {
     console.error(e);
     vipoCloudCtx.enabled = false;
@@ -1232,14 +1325,12 @@ async function initVipoCloudSync() {
     clearCloudUnsubs();
     const msg = String(e?.message || e || '');
     const hint =
-      msg.includes('auth/operation-not-allowed') || msg.includes('anonymous')
-        ? 'הפעילו ב־Firebase Console → Authentication → Sign-in method → Anonymous.'
+      msg.includes('auth/operation-not-allowed') || msg.includes('password')
+        ? 'הפעילו ב־Firebase Console → Authentication → Sign-in method → Email/Password.'
         : '';
-    setVipoSyncState('error', hint ? 'שגיאת התחברות — ' + hint : undefined);
+    setVipoSyncState('error', hint ? 'שגיאת Firebase — ' + hint : undefined);
     showToast(
-      hint
-        ? 'סנכרון ענן: נדרש Anonymous sign-in ב־Firebase. ' + hint
-        : 'סנכרון ענן לא זמין — עובדים במצב מקומי (מטמון בדפדפן).',
+      hint ? 'Firebase Auth: ' + hint : 'סנכרון ענן לא זמין — עובדים במצב מקומי (מטמון בדפדפן).',
       6500
     );
     updateVipoCloudHint();
@@ -2531,7 +2622,7 @@ async function init() {
   receivedByItemId = state.receivedByItemId || {};
   payments = state.payments || defaultPaymentsState();
   loadSamplesCatalog();
-  initCloudSyncDialog();
+  initFirebaseAuthDialog();
   await initVipoCloudSync();
   saveState();
   syncPaymentsFormInputs();

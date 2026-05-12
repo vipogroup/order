@@ -1,8 +1,8 @@
 rules_version = '2';
 // Firebase Console → Firestore → Rules → Publish.
-// Spark: Authentication → Sign-in method → Anonymous חובה.
-// נתיב עבודה: inventory/{מפתח_64_hex}/... — המפתח נגזר בצד הלקוח מקוד הגישה + salt באפליקציה.
-// מיגרציה חד־פעמית: מסמך ישן vipo_state/1985 (אם קיים) נקרא מהאפליקציה ונדחף למבנה החדש.
+// Spark: Authentication → Sign-in method → Email/Password (חובה). Anonymous לא נדרש לכללים אלה.
+// נתונים: inventory/{uid}/... — רק המשתמש המחובר (uid == request.auth.uid) רשאי לנתיב שלו.
+// מסמך legacy vipo_state/1985 נשאר לגיבוי/מיגרציה ידנית — לא למחוק עד וידוא מלא.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -11,10 +11,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function validWorkspace(ws) {
-      return ws is string
-        && ws.size() == 64
-        && ws.matches('^[a-f0-9]+$');
+    function ownsInventory(uid) {
+      return authed() && request.auth.uid == uid;
     }
 
     function metaDocOk() {
@@ -29,34 +27,33 @@ service cloud.firestore {
         && (request.resource.data.qty is int || request.resource.data.qty is float);
     }
 
-    match /inventory/{wsKey} {
+    match /inventory/{uid} {
       match /sales/{saleId} {
-        allow read, delete: if authed() && validWorkspace(wsKey);
-        allow create, update: if authed() && validWorkspace(wsKey);
+        allow read, delete: if ownsInventory(uid);
+        allow create, update: if ownsInventory(uid);
       }
       match /orders/{orderId} {
-        allow read, delete: if authed() && validWorkspace(wsKey);
-        allow create, update: if authed() && validWorkspace(wsKey);
+        allow read, delete: if ownsInventory(uid);
+        allow create, update: if ownsInventory(uid);
       }
       match /arrivals/{itemId} {
-        allow read, delete: if authed() && validWorkspace(wsKey);
-        allow create, update: if authed() && validWorkspace(wsKey) && arrivalQtyOk();
+        allow read, delete: if ownsInventory(uid);
+        allow create, update: if ownsInventory(uid) && arrivalQtyOk();
       }
       match /products/{productId} {
-        allow read, delete: if authed() && validWorkspace(wsKey);
-        allow create, update: if authed() && validWorkspace(wsKey);
+        allow read, delete: if ownsInventory(uid);
+        allow create, update: if ownsInventory(uid);
       }
       match /payments/{payId} {
-        allow read, delete: if authed() && validWorkspace(wsKey) && payId == 'summary';
-        allow create, update: if authed() && validWorkspace(wsKey) && payId == 'summary';
+        allow read, delete: if ownsInventory(uid) && payId == 'summary';
+        allow create, update: if ownsInventory(uid) && payId == 'summary';
       }
       match /settings/{setId} {
-        allow read, delete: if authed() && validWorkspace(wsKey) && setId == 'meta';
-        allow create, update: if authed() && validWorkspace(wsKey) && setId == 'meta' && metaDocOk();
+        allow read, delete: if ownsInventory(uid) && setId == 'meta';
+        allow create, update: if ownsInventory(uid) && setId == 'meta' && metaDocOk();
       }
     }
 
-    // מסמך legacy לקריאה/כתיבה רק למשתמש מחובר (מיגרציה); מומלץ למחוק ידנית אחרי מעבר מוצלח.
     match /vipo_state/{docId} {
       allow read: if authed() && docId == '1985';
       allow create, update: if authed()

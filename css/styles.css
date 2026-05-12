@@ -272,8 +272,18 @@ button { cursor: pointer; }
 }
 .vipo-sync-bar--error .vipo-sync-bar__dot,
 .vipo-sync-bar--no_config .vipo-sync-bar__dot,
-.vipo-sync-bar--local_only .vipo-sync-bar__dot {
+.vipo-sync-bar--local_only .vipo-sync-bar__dot,
+.vipo-sync-bar--not_logged_in .vipo-sync-bar__dot,
+.vipo-sync-bar--permission_error .vipo-sync-bar__dot {
   background: #f87171;
+}
+.vipo-sync-bar--auth_required .vipo-sync-bar__dot {
+  background: #fbbf24;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25);
+}
+.vipo-sync-bar--user_connected .vipo-sync-bar__dot {
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
 }
 .vipo-sync-bar__text {
   line-height: 1.35;

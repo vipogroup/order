@@ -1,44 +1,17 @@
 /**
  * VIPO — קונפיגורציית Firebase (אתר סטטי / GitHub Pages)
  *
- * ┌─ אבטחה: אל תעלו לריפו ציבורי מפתחות אמיתיים אם חוששים לחשיפה. אפשרויות: ┐
- * │  • GitHub Actions: בנייה שמזריקה ערכים מ־Repository secrets לקובץ זה בעת deploy   │
- * │  • או השארת השדות ריקים כאן + הדבקה חד־פעמית במכשיר דרך «שיתוף נתונים» (localStorage) │
- * └──────────────────────────────────────────────────────────────────────────────────┘
+ * מילוי אוטומטי של Web App מ־Firebase Console → Project settings.
+ * Authentication: Email/Password חייב להיות מופעל.
+ * Firestore Rules מתוך firestore.rules — לפרסם ב־Console רק אחרי שהאתר הציבורי עלה עם הגרסה הזו.
  *
- * בפרויקט Firebase:
- * 1) Authentication → Sign-in method → Anonymous — חובה (Firestore Rules דורשות auth).
- * 2) Firestore → יצירת מסד; Rules — העתיקו מ־firestore.rules בשורש הפרויקט ופרסמו.
- * 3) Project settings → האפליקציה שלכם (Web) → firebaseConfig.
- * 4) נתיבי נתונים: inventory/{מפתח_עבודה}/sales, orders, arrivals, products, payments/summary, settings/meta
- *    (מפתח העבודה = SHA-256 של קוד_הגישה + salt באפליקציה; מסמך legacy vipo_state/1985 נתמך למיגרציה).
+ * לאחר שינוי כאן: בדיקה מקומית → commit/push רק באישור.
  */
-window.VIPO_FIREBASE_STORAGE_KEY = 'VIPO_FIREBASE_CONFIG';
-
 window.VIPO_FIREBASE = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
+  apiKey: 'AIzaSyACyyz8b9HuRRGGgWFwhowhisHjIqPxQEc',
+  authDomain: 'planning-with-ai-244fe.firebaseapp.com',
+  projectId: 'planning-with-ai-244fe',
+  storageBucket: 'planning-with-ai-244fe.firebasestorage.app',
+  messagingSenderId: '949385511980',
+  appId: '1:949385511980:web:b78012ff50b2802da63d89'
 };
-
-(function applyStoredFirebaseConfig() {
-  try {
-    var raw = localStorage.getItem(window.VIPO_FIREBASE_STORAGE_KEY);
-    if (!raw) return;
-    var o = JSON.parse(raw);
-    if (!o || typeof o !== 'object' || !o.apiKey || !o.projectId) return;
-    window.VIPO_FIREBASE = {
-      apiKey: String(o.apiKey || ''),
-      authDomain: String(o.authDomain || ''),
-      projectId: String(o.projectId || ''),
-      storageBucket: String(o.storageBucket || ''),
-      messagingSenderId: String(o.messagingSenderId || ''),
-      appId: String(o.appId || '')
-    };
-  } catch (e) {
-    /* נתון שבור — מתעלמים */
-  }
-})();
