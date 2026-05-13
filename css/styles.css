@@ -949,6 +949,115 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
 }
 
+/* ——— Sales: site price at sale vs paid + gap (4A-4) ——— */
+.th-sale-site-gap,
+.td-sale-site-gap {
+  min-width: 132px;
+  max-width: 220px;
+  width: 168px;
+  vertical-align: top;
+  text-align: right;
+  white-space: normal;
+}
+.th-sale-site-gap {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink-soft);
+}
+.sale-site-gap {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.sale-site-gap--desktop {
+  display: block;
+}
+.sale-site-gap--mobile {
+  display: none;
+}
+.sale-site-gap__row {
+  margin-bottom: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.sale-site-gap__row:last-child {
+  margin-bottom: 0;
+}
+.sale-site-gap__lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.sale-site-gap__val {
+  font-weight: 600;
+  color: var(--ink);
+}
+.sale-site-gap__dash {
+  color: var(--muted);
+  font-weight: 600;
+}
+.sale-site-gap__row--status {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(14, 17, 23, 0.08);
+}
+.sale-site-gap__equal {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.sale-site-gap__discount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b45309;
+}
+.td-sale-site-gap--discount .sale-site-gap__discount {
+  color: #b45309;
+}
+.sale-site-gap__above {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a6b5c;
+}
+.td-sale-site-gap--above .sale-site-gap__above {
+  color: #1a6b5c;
+}
+
+@media (max-width: 639px) {
+  .th-sale-site-gap,
+  .td-sale-site-gap {
+    min-width: 0;
+    max-width: 100%;
+    width: auto;
+  }
+  .sale-site-gap--desktop {
+    display: none;
+  }
+  .sale-site-gap--mobile {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.38;
+    color: var(--ink-soft);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+  .td-sale-site-gap--discount .sale-site-gap--mobile {
+    color: #9a3412;
+  }
+  .td-sale-site-gap--equal .sale-site-gap--mobile {
+    color: var(--muted);
+  }
+  .td-sale-site-gap--above .sale-site-gap--mobile {
+    color: #166534;
+  }
+  .td-sale-site-gap--na .sale-site-gap--mobile {
+    color: var(--ink-soft);
+  }
+}
+
 .order-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2263,6 +2372,953 @@ tr.samples-row--freight td:nth-child(3) {
   .local-only-banner__inner {
     flex-wrap: wrap;
     min-width: 0;
+  }
+}
+
+/* ——— Mobile (≤639px): step 3A — Doron & Received as cards ——— */
+@media (max-width: 639px) {
+  #panel-doron .table-wrap,
+  #panel-received .table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    margin-bottom: 0;
+  }
+  #panel-doron .table-wrap--tall,
+  #panel-received .table-wrap--tall {
+    max-height: none;
+  }
+
+  #panel-doron .data-table,
+  #panel-received .data-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 14px;
+  }
+  #panel-doron .data-table thead,
+  #panel-received .data-table thead {
+    display: none;
+  }
+  #panel-doron .data-table tbody,
+  #panel-received .data-table tbody {
+    display: block;
+  }
+
+  #panel-doron .data-table tbody tr,
+  #panel-received .data-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px 10px;
+    margin: 0 0 12px;
+    padding: 14px 12px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(14, 17, 23, 0.04);
+  }
+  #panel-doron .data-table tbody tr:nth-child(even),
+  #panel-received .data-table tbody tr:nth-child(even),
+  #panel-doron .data-table tbody tr:hover,
+  #panel-received .data-table tbody tr:hover {
+    background: var(--surface-elevated);
+  }
+
+  #panel-doron .data-table tbody td,
+  #panel-received .data-table tbody td {
+    display: block;
+    width: auto;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    text-align: right;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.25;
+    min-height: 56px;
+    min-width: 0;
+  }
+  #panel-doron .data-table tbody td::before,
+  #panel-received .data-table tbody td::before {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  #panel-doron .data-table tbody td:nth-child(1),
+  #panel-received .data-table tbody td:nth-child(1) {
+    display: none;
+  }
+  #panel-doron .data-table tbody td:nth-child(2),
+  #panel-received .data-table tbody td:nth-child(2) {
+    grid-column: 1 / -1;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 0 0 8px;
+    min-height: 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--ink);
+  }
+  #panel-doron .data-table tbody td:nth-child(2)::before,
+  #panel-received .data-table tbody td:nth-child(2)::before {
+    content: "מוצר";
+  }
+
+  /* — דורון (8 cols) — */
+  #panel-doron .data-table tbody td:nth-child(3) {
+    grid-column: 1 / -1;
+    background: var(--paper-deep);
+    border-color: var(--border-strong);
+  }
+  #panel-doron .data-table tbody td:nth-child(3)::before { content: "מידה"; }
+  #panel-doron .data-table tbody td:nth-child(7) {
+    grid-column: 1 / 2;
+    background: var(--doron-bg);
+    border-color: var(--doron-border);
+    font-size: 18px;
+  }
+  #panel-doron .data-table tbody td:nth-child(7)::before { content: "נותר אצלי"; color: var(--doron); }
+  #panel-doron .data-table tbody td:nth-child(5) { grid-column: 2 / 3; font-size: 18px; }
+  #panel-doron .data-table tbody td:nth-child(5)::before { content: "הגיע"; }
+  #panel-doron .data-table tbody td:nth-child(6) { grid-column: 3 / 4; font-size: 18px; }
+  #panel-doron .data-table tbody td:nth-child(6)::before { content: "נמכר"; }
+  #panel-doron .data-table tbody td:nth-child(4) { grid-column: 1 / 2; }
+  #panel-doron .data-table tbody td:nth-child(4)::before { content: "הוזמן"; }
+  #panel-doron .data-table tbody td:nth-child(8) { grid-column: 2 / -1; }
+  #panel-doron .data-table tbody td:nth-child(8)::before { content: "חוסר מההזמנה"; }
+  #panel-doron .data-table tbody td .badge {
+    font-size: 16px;
+    padding: 6px 12px;
+  }
+
+  /* — מה הגיע (6 cols) — */
+  #panel-received .data-table tbody td:nth-child(3) {
+    grid-column: 1 / -1;
+    background: var(--paper-deep);
+    border-color: var(--border-strong);
+  }
+  #panel-received .data-table tbody td:nth-child(3)::before { content: "מידה"; }
+  #panel-received .data-table tbody td:nth-child(4) { grid-column: 1 / 2; }
+  #panel-received .data-table tbody td:nth-child(4)::before { content: "הוזמן"; }
+  #panel-received .data-table tbody td:nth-child(6) { grid-column: 2 / -1; }
+  #panel-received .data-table tbody td:nth-child(6)::before { content: "חוסר מההזמנה"; }
+  #panel-received .data-table tbody td:nth-child(5) {
+    grid-column: 1 / -1;
+    background: var(--accent-soft);
+    border-color: rgba(45, 79, 124, 0.3);
+    padding: 8px 12px 10px;
+  }
+  #panel-received .data-table tbody td:nth-child(5)::before {
+    content: "הגיע בפועל";
+    color: var(--accent);
+  }
+  #panel-received .data-table tbody td:nth-child(5) .table-input {
+    width: 100%;
+    max-width: none;
+    min-height: 48px;
+    font-size: 18px;
+    font-weight: 800;
+    text-align: center;
+    background: var(--surface-elevated);
+  }
+}
+
+/* ——— Mobile (≤639px): step 3D — Nissim screen redesigned (clean, full-width, modern) ——— */
+@media (max-width: 639px) {
+  /* קונטיינרים: למנוע h-overflow בשום מצב */
+  #panel-nissim,
+  #panel-nissim > *,
+  #panel-nissim .panel-head,
+  #panel-nissim .panel-head__sub,
+  #panel-nissim .filters,
+  #panel-nissim .layout-split,
+  #panel-nissim .layout-split__main,
+  #panel-nissim .layout-split__aside,
+  #panel-nissim .card,
+  #panel-nissim .card--form-panel,
+  #panel-nissim .sale-form,
+  #panel-nissim .sale-line-row,
+  #panel-nissim .table-wrap,
+  #panel-nissim .data-table,
+  #panel-nissim .data-table tbody,
+  #panel-nissim .data-table tbody tr,
+  #panel-nissim .data-table tbody td {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  #panel-nissim .panel-head__sub {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* כותרת + סרגל חיפוש קומפקטיים */
+  #panel-nissim .panel-head {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  #panel-nissim .panel-title {
+    font-size: 1.15rem;
+    line-height: 1.25;
+  }
+  #panel-nissim .panel-head__sub {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+  #panel-nissim .filters {
+    gap: 8px;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  #panel-nissim .filters .field-grow {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  #panel-nissim .filters input[type="search"] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+  #panel-nissim .filters .btn {
+    min-height: 44px;
+    flex: 1 1 calc(50% - 4px);
+  }
+
+  /* טופס מכירה — קומפקטי, full-width */
+  #panel-nissim .layout-split {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    gap: 12px;
+  }
+  #panel-nissim .layout-split__main,
+  #panel-nissim .layout-split__aside {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  #panel-nissim .card--form-panel {
+    padding: 12px 14px;
+    margin: 0;
+  }
+  #panel-nissim .panel-aside-title {
+    font-size: 14px;
+    margin: 0 0 4px;
+  }
+  #panel-nissim .form-hint {
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+  #panel-nissim .sale-form {
+    gap: 10px;
+  }
+  #panel-nissim .sale-form > label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    display: block;
+  }
+  #panel-nissim .sale-form input,
+  #panel-nissim .sale-form select,
+  #panel-nissim .sale-form textarea {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    box-sizing: border-box;
+  }
+  #panel-nissim .sale-form input[type="date"] {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #panel-nissim .sale-form textarea {
+    min-height: 60px;
+  }
+  #panel-nissim .sale-lines-toolbar {
+    margin: 2px 0 4px;
+  }
+  #panel-nissim .sale-line-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 44px;
+    gap: 8px;
+    padding: 10px;
+    align-items: end;
+  }
+  #panel-nissim .sale-line-row .sale-line-product {
+    grid-column: 1 / -1;
+  }
+  #panel-nissim .sale-line-row select,
+  #panel-nissim .sale-line-row input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* רשימת מוצרים: כרטיסים full-width */
+  #panel-nissim .table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+  }
+  #panel-nissim .table-wrap--tall {
+    max-height: none;
+  }
+  #panel-nissim .data-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+  }
+  #panel-nissim .data-table thead {
+    display: none;
+  }
+  #panel-nissim .data-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  /* כרטיס מוצר — מבנה מודרני, full-width, ללא קופסאות פנימיות */
+  #panel-nissim .data-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    column-gap: 8px;
+    row-gap: 6px;
+    width: 100%;
+    margin: 0 0 10px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid rgba(14, 17, 23, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(14, 17, 23, 0.04);
+    overflow: hidden;
+  }
+  #panel-nissim .data-table tbody tr:hover,
+  #panel-nissim .data-table tbody tr:nth-child(even) {
+    background: #fff;
+  }
+
+  /* תאי הכרטיס — בלי מסגרות פנימיות */
+  #panel-nissim .data-table tbody td {
+    display: block;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    min-height: 0;
+    line-height: 1.25;
+    text-align: right;
+    font-weight: 700;
+    overflow: hidden;
+    min-width: 0;
+    max-width: 100%;
+  }
+  #panel-nissim .data-table tbody td::before {
+    display: none;
+  }
+
+  /* # — מוסתר */
+  #panel-nissim .data-table tbody td:nth-child(1) {
+    display: none;
+  }
+
+  /* שורה 1: שם מוצר */
+  #panel-nissim .data-table tbody td:nth-child(2) {
+    grid-row: 1;
+    grid-column: 1 / -1;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--ink);
+    line-height: 1.3;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-overflow: ellipsis;
+    padding: 0;
+  }
+
+  /* שורה 2: מידה — בולטת ודומיננטית; שם מקורי משני בקצה הנגדי */
+  #panel-nissim .data-table tbody td:nth-child(4) {
+    grid-row: 2;
+    grid-column: 1 / span 7;
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    align-self: center;
+    max-width: 100%;
+    margin: 2px 0 0;
+    padding: 4px 12px;
+    background: var(--nissim-bg);
+    color: var(--nissim);
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+  }
+  #panel-nissim .data-table tbody td:nth-child(4) strong {
+    font-weight: 800;
+  }
+  #panel-nissim .data-table tbody td:nth-child(3) {
+    grid-row: 2;
+    grid-column: 8 / -1;
+    align-self: center;
+    text-align: end;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.85;
+  }
+
+  /* שורה 3: KPIs נותר / הגיע / נמכר — אינליין: label קטן + מספר גדול */
+  #panel-nissim .data-table tbody td:nth-child(8),
+  #panel-nissim .data-table tbody td:nth-child(6),
+  #panel-nissim .data-table tbody td:nth-child(7) {
+    grid-row: 3;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 4px 4px;
+    margin-top: 4px;
+    border-top: 1px solid rgba(14, 17, 23, 0.06);
+    font-size: 20px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.05;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #panel-nissim .data-table tbody td:nth-child(8) {
+    grid-column: 1 / span 4;
+    color: var(--accent);
+  }
+  #panel-nissim .data-table tbody td:nth-child(6) {
+    grid-column: 5 / span 4;
+    color: #2f7a4d;
+  }
+  #panel-nissim .data-table tbody td:nth-child(7) {
+    grid-column: 9 / span 4;
+    color: var(--ink);
+  }
+  #panel-nissim .data-table tbody td:nth-child(8)::before {
+    content: "נותר";
+    display: inline;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 0;
+  }
+  #panel-nissim .data-table tbody td:nth-child(6)::before {
+    content: "הגיע";
+    display: inline;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 0;
+  }
+  #panel-nissim .data-table tbody td:nth-child(7)::before {
+    content: "נמכר";
+    display: inline;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 0;
+  }
+
+  /* badge בתוך תא "נותר" — בלי pill, רק צבע מספר */
+  #panel-nissim .data-table tbody td:nth-child(8) .badge {
+    display: inline;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    line-height: inherit;
+  }
+  #panel-nissim .data-table tbody td:nth-child(8) .badge--empty {
+    color: var(--danger);
+  }
+  #panel-nissim .data-table tbody td:nth-child(8) .badge--low {
+    color: #a3560a;
+  }
+
+  /* שורה 4: הוזמן + חוסר */
+  #panel-nissim .data-table tbody td:nth-child(5),
+  #panel-nissim .data-table tbody td:nth-child(9) {
+    grid-row: 4;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 4px 0 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #panel-nissim .data-table tbody td:nth-child(5) {
+    grid-column: 1 / span 6;
+  }
+  #panel-nissim .data-table tbody td:nth-child(9) {
+    grid-column: 7 / span 6;
+    justify-content: flex-end;
+    text-align: end;
+  }
+  #panel-nissim .data-table tbody td:nth-child(5)::before {
+    content: "הוזמן";
+    display: inline;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 0;
+    flex: 0 0 auto;
+  }
+  #panel-nissim .data-table tbody td:nth-child(9)::before {
+    content: "חוסר";
+    display: inline;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 0;
+    flex: 0 0 auto;
+  }
+
+  /* שורה 5: מחיר + עלות (LTR מבודד) */
+  #panel-nissim .data-table tbody td:nth-child(10),
+  #panel-nissim .data-table tbody td:nth-child(11) {
+    grid-row: 5;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 4px 0 0;
+    margin-top: 2px;
+    border-top: 1px dashed rgba(14, 17, 23, 0.05);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: end;
+  }
+  #panel-nissim .data-table tbody td:nth-child(10) {
+    grid-column: 1 / span 6;
+  }
+  #panel-nissim .data-table tbody td:nth-child(11) {
+    grid-column: 7 / span 6;
+    justify-content: flex-end;
+  }
+  #panel-nissim .data-table tbody td:nth-child(10)::before {
+    content: "מחיר";
+    display: inline;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 0;
+    flex: 0 0 auto;
+    direction: rtl;
+  }
+  #panel-nissim .data-table tbody td:nth-child(11)::before {
+    content: "עלות";
+    display: inline;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 0;
+    flex: 0 0 auto;
+    direction: rtl;
+  }
+}
+
+/* ——— Site price (מחיר אתר ₪) — column + real input ——— */
+.th-site-price,
+.td-site-price {
+  min-width: 124px;
+  width: 124px;
+  max-width: 140px;
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.site-price-input {
+  width: 100%;
+  min-width: 100px;
+  max-width: 130px;
+  height: 40px;
+  min-height: 40px;
+  padding: 6px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  box-sizing: border-box;
+  pointer-events: auto;
+  appearance: textfield;
+  -webkit-appearance: textfield;
+  -moz-appearance: textfield;
+}
+.site-price-input::-webkit-outer-spin-button,
+.site-price-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.site-price-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.site-price-input::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.th-site-price .th-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* ——— Sale form modal (Nissim) ——— */
+.sale-form-modal {
+  width: min(calc(100vw - 24px), 100%);
+  max-width: min(96vw, 640px);
+}
+.sale-form-modal .cloud-sync-dialog__inner {
+  max-height: min(90dvh, 760px);
+  overflow-y: auto;
+  padding: 22px 22px 20px;
+}
+.sale-form-modal .sale-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+.sale-form-modal .sale-form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.sale-form-modal .sale-form input,
+.sale-form-modal .sale-form select,
+.sale-form-modal .sale-form textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 15px;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+.sale-form-modal .sale-form input[type="date"] {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: right;
+  white-space: nowrap;
+}
+.sale-form-modal .sale-form textarea {
+  min-height: 64px;
+}
+.sale-form-modal .sale-lines-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0 0;
+}
+.sale-form-modal .sale-line-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 44px;
+  gap: 8px;
+  padding: 10px;
+  align-items: end;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  margin-bottom: 8px;
+}
+.sale-form-modal .sale-line-row .sale-line-product {
+  grid-column: 1 / -1;
+}
+.sale-form-modal .sale-line-row select,
+.sale-form-modal .sale-line-row input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* ——— Site price hint inside a sale-line-row (all layouts) ——— */
+.sale-line-row .sale-line-site-price {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 2px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink-soft);
+  background: rgba(99, 132, 255, 0.07);
+  border: 1px dashed rgba(99, 132, 255, 0.28);
+  border-radius: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+.sale-line-row .sale-line-site-price[data-empty="1"] {
+  color: var(--muted);
+  background: transparent;
+  border-style: dotted;
+  border-color: var(--border);
+}
+
+@media (max-width: 639px) {
+  .sale-form-modal {
+    width: 100vw;
+    max-width: 100vw;
+  }
+  .sale-form-modal .cloud-sync-dialog__inner {
+    max-height: 100dvh;
+    padding: 20px 16px max(16px, env(safe-area-inset-bottom, 0px));
+  }
+  .sale-form-modal .sale-form input,
+  .sale-form-modal .sale-form select,
+  .sale-form-modal .sale-form textarea {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 639px) {
+  /* ניסים — שורה תחתונה נפרדת בכרטיס (אחרי מחיר/עלות) */
+  #panel-nissim .data-table tbody td:nth-child(12) {
+    grid-row: 6;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0 0;
+    margin-top: 4px;
+    border-top: 1px dashed rgba(14, 17, 23, 0.06);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    background: transparent;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    min-height: 0;
+    text-align: right;
+    overflow: visible;
+  }
+  #panel-nissim .data-table tbody td:nth-child(12)::before {
+    content: "מחיר אתר ₪";
+    display: inline;
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0;
+    text-transform: none;
+    margin: 0;
+  }
+  #panel-nissim .data-table tbody td:nth-child(12) .site-price-input {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 44px;
+    min-height: 44px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-sizing: border-box;
+    font-size: 16px;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  /* דורון — שורה תחתונה בכרטיס (תא 9) */
+  #panel-doron .data-table tbody td:nth-child(9) {
+    grid-column: 1 / -1;
+    background: var(--accent-soft);
+    border-color: rgba(45, 79, 124, 0.3);
+    padding: 8px 12px 10px;
+  }
+  #panel-doron .data-table tbody td:nth-child(9)::before {
+    content: "מחיר אתר ₪";
+    color: var(--accent);
+  }
+  #panel-doron .data-table tbody td:nth-child(9) .site-price-input {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 48px;
+    min-height: 48px;
+    font-size: 16px;
+    font-weight: 800;
+    text-align: center;
+    background: var(--surface-elevated);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    box-sizing: border-box;
+  }
+}
+
+/* ——— Sales — edit mode toggle ——— */
+#panel-sales .sales-actions {
+  display: none;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+#panel-sales[data-edit-mode="on"] .sales-actions {
+  display: inline-flex;
+}
+#panel-sales .sales-actions .btn {
+  white-space: nowrap;
+}
+#salesEditModeBtn {
+  align-self: center;
+}
+#salesEditModeBtn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+#saleEditDialog .sale-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+#saleEditDialog .sale-form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+#saleEditDialog .sale-form > label.full {
+  grid-column: 1 / -1;
+}
+#saleEditDialog .sale-form input,
+#saleEditDialog .sale-form select,
+#saleEditDialog .sale-form textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 40px;
+  font-size: 15px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+#saleEditDialog .sale-form textarea {
+  min-height: 56px;
+}
+#saleEditDialog .cloud-sync-dialog__actions {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+#saleEditError {
+  grid-column: 1 / -1;
+}
+@media (max-width: 639px) {
+  #saleEditDialog .sale-form {
+    grid-template-columns: 1fr;
+  }
+  #panel-sales .sales-actions {
+    gap: 4px;
+  }
+  #panel-sales .sales-actions .btn {
+    padding: 6px 10px;
   }
 }
 

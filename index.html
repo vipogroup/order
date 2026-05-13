@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=mobile-step2" />
+  <link rel="stylesheet" href="css/styles.css?v=site-price-7" />
   <script>
     (function () {
       try {
@@ -232,12 +232,11 @@
           </div>
           <button type="button" class="btn btn--small btn--muted" id="clearInventorySearchBtn" title="נקה חיפוש">נקה</button>
           <button type="button" class="btn btn--small" id="exportInventoryNissimCsvBtn">יצוא CSV</button>
+          <button type="button" class="btn btn--small btn--primary" id="openSaleFormNissimBtn" aria-haspopup="dialog" aria-controls="saleFormNissimDialog">+ רישום מכירה</button>
         </div>
       </div>
-      <div class="layout-split">
-        <div class="layout-split__main">
-          <div class="table-wrap table-wrap--tall">
-            <table class="data-table data-table--wrap-product">
+      <div class="table-wrap table-wrap--tall">
+        <table class="data-table data-table--wrap-product">
           <thead>
             <tr>
               <th>#</th>
@@ -251,37 +250,11 @@
                   <th>חוסר מההזמנה</th>
                   <th>מחיר $</th>
                   <th>עלות $</th>
+                  <th class="th-site-price">מחיר אתר ₪<span class="th-hint">Enter / יציאה לשמירה</span></th>
             </tr>
           </thead>
               <tbody id="inventoryBodyNissim"></tbody>
         </table>
-          </div>
-        </div>
-        <aside class="layout-split__aside">
-          <section class="card card--nested card--sticky card--form-panel">
-            <h3 class="panel-aside-title">רישום מכירה</h3>
-            <p class="form-hint">אפשר כמה מוצרים באותה מכירה — «+ מוצר». המלאי יורד מ־«נותר אצלי».</p>
-            <form id="saleFormNissim" class="sale-form sale-form--compact" data-business="nissim">
-              <label>תאריך <input class="js-sale-date" type="date" required /></label>
-              <div class="sale-lines-toolbar">
-                <span class="sale-lines-label">מוצרים במכירה</span>
-                <button type="button" class="btn btn--small js-add-sale-line">+ מוצר</button>
-              </div>
-              <div class="js-sale-lines"></div>
-              <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
-              <label class="full">סטטוס תשלום
-                <select class="js-sale-status">
-                  <option value="שולם">שולם</option>
-                  <option value="חלקי">חלקי</option>
-                  <option value="לא שולם">לא שולם</option>
-                  <option value="בהמתנה">בהמתנה</option>
-                </select>
-              </label>
-              <label class="full">הערות <textarea class="js-sale-notes" rows="2" placeholder="אופציונלי"></textarea></label>
-              <button type="submit" class="btn btn--primary full">שמור מכירה</button>
-            </form>
-          </section>
-        </aside>
       </div>
     </section>
 
@@ -312,6 +285,7 @@
                   <th>נמכר</th>
                   <th>נותר אצלי</th>
                   <th>חוסר מההזמנה</th>
+                  <th class="th-site-price">מחיר אתר ₪</th>
                 </tr>
               </thead>
               <tbody id="inventoryBodyDoron"></tbody>
@@ -714,6 +688,7 @@
         <div class="panel-head compact">
           <h3 class="section-label section-label--flush">יומן מכירות</h3>
           <input id="salesSearch" class="search-wide" type="search" placeholder="חיפוש במכירות" />
+          <button type="button" class="btn btn--small" id="salesEditModeBtn" aria-pressed="false" aria-label="הפעלת מצב עריכה למכירות">ערוך</button>
         </div>
         <div class="table-wrap">
           <table class="data-table">
@@ -727,6 +702,7 @@
                 <th>כמות</th>
                 <th>מחיר ₪</th>
                 <th>סה״כ ₪</th>
+                <th class="th-sale-site-gap">מחיר אתר ₪ · פער</th>
                 <th>לקוח</th>
                 <th>תשלום</th>
                 <th>הערות</th>
@@ -813,7 +789,65 @@
     </div>
   </dialog>
 
+  <dialog id="saleFormNissimDialog" class="cloud-sync-dialog sale-form-modal" aria-labelledby="saleFormNissimTitle">
+    <div class="cloud-sync-dialog__inner">
+      <button type="button" class="cloud-sync-dialog__x" id="saleFormNissimDialogCloseX" aria-label="סגירה">×</button>
+      <h2 id="saleFormNissimTitle" class="cloud-sync-dialog__title">רישום מכירה — ניסים</h2>
+      <p class="form-hint">אפשר כמה מוצרים באותה מכירה — «+ מוצר». המלאי יורד מ־«נותר אצלי».</p>
+      <form id="saleFormNissim" class="sale-form sale-form--compact" data-business="nissim">
+        <label>תאריך <input class="js-sale-date" type="date" required /></label>
+        <div class="sale-lines-toolbar">
+          <span class="sale-lines-label">מוצרים במכירה</span>
+          <button type="button" class="btn btn--small js-add-sale-line">+ מוצר</button>
+        </div>
+        <div class="js-sale-lines"></div>
+        <label class="full">לקוח <input class="js-sale-customer" type="text" placeholder="שם / עסק" /></label>
+        <label class="full">סטטוס תשלום
+          <select class="js-sale-status">
+            <option value="שולם">שולם</option>
+            <option value="חלקי">חלקי</option>
+            <option value="לא שולם">לא שולם</option>
+            <option value="בהמתנה">בהמתנה</option>
+          </select>
+        </label>
+        <label class="full">הערות <textarea class="js-sale-notes" rows="2" placeholder="אופציונלי"></textarea></label>
+        <button type="submit" class="btn btn--primary full">שמור מכירה</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="saleEditDialog" class="cloud-sync-dialog" aria-labelledby="saleEditTitle">
+    <div class="cloud-sync-dialog__inner">
+      <button type="button" class="cloud-sync-dialog__x" id="saleEditCloseX" aria-label="סגירה">×</button>
+      <h2 id="saleEditTitle" class="cloud-sync-dialog__title">עריכת מכירה</h2>
+      <p class="cloud-sync-dialog__lead">שינויי תאריך · לקוח · סטטוס · הערות יחולו על כל המוצרים באותה מכירה. שינוי מוצר · כמות · מחיר משפיע רק על השורה שנערכת ועל המלאי בהתאם.</p>
+      <form id="saleEditForm" class="sale-form" data-sale-id="">
+        <label>תאריך <input id="saleEditDate" type="date" required /></label>
+        <label class="full">מוצר
+          <select id="saleEditItem" required></select>
+        </label>
+        <label>כמות <input id="saleEditQty" type="number" min="1" step="1" required /></label>
+        <label>מחיר יח׳ ₪ <input id="saleEditPrice" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
+        <label class="full">לקוח <input id="saleEditCustomer" type="text" placeholder="שם / עסק" /></label>
+        <label>סטטוס תשלום
+          <select id="saleEditStatus">
+            <option value="שולם">שולם</option>
+            <option value="חלקי">חלקי</option>
+            <option value="לא שולם">לא שולם</option>
+            <option value="בהמתנה">בהמתנה</option>
+          </select>
+        </label>
+        <label class="full">הערות <textarea id="saleEditNotes" rows="2"></textarea></label>
+        <p id="saleEditError" class="cloud-sync-dialog__error" hidden></p>
+        <div class="cloud-sync-dialog__actions">
+          <button type="submit" class="btn btn--small btn--primary">שמירה</button>
+          <button type="button" class="btn btn--small btn--outline-light" id="saleEditCancelBtn">ביטול</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
   <script src="js/firebase-config.js?v=8"></script>
-  <script src="js/app.js?v=a180686-sync-fix"></script>
+  <script src="js/app.js?v=site-price-7"></script>
 </body>
 </html>

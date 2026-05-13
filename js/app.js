@@ -243,6 +243,10 @@ let sales = [];
 let orders = [];
 /** כמויות שהגיעו בפועל אצלך; אם אין מפתח — נחשב כמו ההזמנה */
 let receivedByItemId = {};
+/** מחיר אתר ₪ ליחידה לכל מוצר (אופציונלי). אם אין מפתח → "—" בתצוגה */
+let sitePricesByItemId = {};
+/** פעם אחת: מילוי מחירי אתר ידועים; אחרי true לא מריצים seed אוטומטי (גם אם נמחק מחיר ידנית). */
+let knownSitePricesSeededV1 = false;
 /** יומני תשלומים, שער דולר, עלויות דורון */
 let payments = defaultPaymentsState();
 
@@ -439,7 +443,23 @@ const els = {
   payDoronRemaining: document.getElementById('payDoronRemaining'),
   samplesBody: document.getElementById('samplesBody'),
   samplesSearch: document.getElementById('samplesSearch'),
-  exportSamplesCsvBtn: document.getElementById('exportSamplesCsvBtn')
+  exportSamplesCsvBtn: document.getElementById('exportSamplesCsvBtn'),
+  salesEditModeBtn: document.getElementById('salesEditModeBtn'),
+  saleEditDialog: document.getElementById('saleEditDialog'),
+  saleEditForm: document.getElementById('saleEditForm'),
+  saleEditDate: document.getElementById('saleEditDate'),
+  saleEditItem: document.getElementById('saleEditItem'),
+  saleEditQty: document.getElementById('saleEditQty'),
+  saleEditPrice: document.getElementById('saleEditPrice'),
+  saleEditCustomer: document.getElementById('saleEditCustomer'),
+  saleEditStatus: document.getElementById('saleEditStatus'),
+  saleEditNotes: document.getElementById('saleEditNotes'),
+  saleEditError: document.getElementById('saleEditError'),
+  saleEditCloseX: document.getElementById('saleEditCloseX'),
+  saleEditCancelBtn: document.getElementById('saleEditCancelBtn'),
+  openSaleFormNissimBtn: document.getElementById('openSaleFormNissimBtn'),
+  saleFormNissimDialog: document.getElementById('saleFormNissimDialog'),
+  saleFormNissimDialogCloseX: document.getElementById('saleFormNissimDialogCloseX')
 };
 
 let toastHideTimer;
@@ -471,18 +491,51 @@ function loadState() {
         received = { ...p.receivedByItemId };
       }
       const pay = mergePaymentsState(p.payments);
-      return { sales, orders, receivedByItemId: received, payments: pay };
+      const sitePrices = sanitizeSitePricesMap(p.sitePricesByItemId);
+      return {
+        sales,
+        orders,
+        receivedByItemId: received,
+        payments: pay,
+        sitePricesByItemId: sitePrices,
+        knownSitePricesSeededV1: p.knownSitePricesSeededV1 === true
+      };
     }
     const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
     if (rawV1) {
       const p = JSON.parse(rawV1);
       const s = Array.isArray(p.sales) ? migrateSalesItemIds(p.sales) : [];
-      return { sales: s, orders: [], receivedByItemId: {}, payments: defaultPaymentsState() };
+      return {
+        sales: s,
+        orders: [],
+        receivedByItemId: {},
+        payments: defaultPaymentsState(),
+        sitePricesByItemId: {},
+        knownSitePricesSeededV1: false
+      };
     }
   } catch (e) {
     console.error(e);
   }
-  return { sales: [], orders: [], receivedByItemId: {}, payments: defaultPaymentsState() };
+  return {
+    sales: [],
+    orders: [],
+    receivedByItemId: {},
+    payments: defaultPaymentsState(),
+    sitePricesByItemId: {},
+    knownSitePricesSeededV1: false
+  };
+}
+
+function sanitizeSitePricesMap(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (!k) continue;
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) out[k] = n;
+  }
+  return out;
 }
 
 function migrateSalesItemIds(list) {
@@ -500,6 +553,8 @@ function saveState() {
     sales,
     orders,
     receivedByItemId,
+    sitePricesByItemId: { ...sitePricesByItemId },
+    knownSitePricesSeededV1: !!knownSitePricesSeededV1,
     payments
   };
   /** מטמון מקומי + גיבוי; כשהענן פעיל — Firestore הוא מקור האמת בין מכשירים */
@@ -530,6 +585,76 @@ function vipoCloudLog(msg, detail) {
   } catch (_) {
     /* */
   }
+}
+
+/** מחזיר number אם קיים מחיר אתר תקף לפריט, אחרת null */
+function getSitePriceIls(itemId) {
+  if (!itemId) return null;
+  const v = sitePricesByItemId?.[itemId];
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** עדכון מחיר אתר לפריט.
+ * מחזיר:
+ * 'saved'     — נשמר ערך תקין חדש.
+ * 'cleared'   — היה ערך, נמחק (קלט ריק).
+ * 'unchanged' — אין שינוי בפועל.
+ * 'invalid'   — קלט לא חוקי (שלילי/NaN).
+ */
+function setSitePriceIls(itemId, raw) {
+  if (!itemId) return 'invalid';
+  const str = String(raw ?? '').trim();
+  if (str === '') {
+    if (sitePricesByItemId[itemId] === undefined) return 'unchanged';
+    delete sitePricesByItemId[itemId];
+    return 'cleared';
+  }
+  const n = Number(str);
+  if (!Number.isFinite(n) || n < 0) return 'invalid';
+  if (sitePricesByItemId[itemId] === n) return 'unchanged';
+  sitePricesByItemId[itemId] = n;
+  return 'saved';
+}
+
+/** מחירי אתר ידועים (4A-5B) — רק itemId מאושרים; לא כיור / לא 2 מדפים 100·200 / לא ארונות / לא דורון. */
+const VIPO_KNOWN_SITE_PRICES_BY_ITEM_ID = {
+  'father-3layer-60x60x90': 905,
+  'father-3layer-80x60x90': 960,
+  'father-3layer-100x60x90': 1015,
+  'father-3layer-120x60x90': 1125,
+  'father-3layer-140x60x90': 1191,
+  'father-3layer-160x60x90': 1278,
+  'father-3layer-180x60x90': 1426,
+  'father-3layer-200x60x90': 1563,
+  'father-2layer-120x60x90': 960,
+  'father-2layer-140x60x90': 1042,
+  'father-2layer-160x60x90': 1132,
+  'father-2layer-180x60x90': 1207
+};
+
+/** מילוי חד-פעמי בטוח: רק אם knownSitePricesSeededV1 עדיין false; רק אם אין מפתח ב-sitePricesByItemId; לא דורס ערך קיים; לא נוגע במכירות. */
+function seedKnownSitePricesIfMissing() {
+  if (knownSitePricesSeededV1) {
+    return { applied: 0, skipped: 0, didSetFlag: false };
+  }
+  let applied = 0;
+  let skipped = 0;
+  for (const [id, price] of Object.entries(VIPO_KNOWN_SITE_PRICES_BY_ITEM_ID)) {
+    if (Object.prototype.hasOwnProperty.call(sitePricesByItemId, id)) {
+      skipped++;
+      continue;
+    }
+    const st = setSitePriceIls(id, String(price));
+    if (st === 'saved') applied++;
+    else skipped++;
+  }
+  knownSitePricesSeededV1 = true;
+  if (applied > 0) {
+    console.info('Known site prices seeded', { applied, skipped });
+  }
+  return { applied, skipped, didSetFlag: true };
 }
 
 /** אין מכירות/הזמנות/“מה הגיע” מותאם — תוצאת init/save לפני ענן לא צריכה לנצח את הענן ב-timestamp */
@@ -598,9 +723,10 @@ function buildReceivedByItemIdFromArrivalsCache() {
 function buildRemoteCloudPayload() {
   if (!vipoRemoteCache.meta?.savedAt) return null;
   const samples = [...vipoRemoteCache.products.values()];
-  return {
+  const meta = vipoRemoteCache.meta;
+  const payload = {
     version: 5,
-    savedAt: vipoRemoteCache.meta.savedAt,
+    savedAt: meta.savedAt,
     sales: [...vipoRemoteCache.sales.values()].sort((a, b) =>
       String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
     ),
@@ -608,9 +734,14 @@ function buildRemoteCloudPayload() {
       String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
     ),
     receivedByItemId: buildReceivedByItemIdFromArrivalsCache(),
+    sitePricesByItemId: sanitizeSitePricesMap(meta?.sitePricesByItemId),
     payments: vipoRemoteCache.payments ? mergePaymentsState(vipoRemoteCache.payments) : defaultPaymentsState(),
     samplesCatalog: samples.length ? samples : undefined
   };
+  if (meta && Object.prototype.hasOwnProperty.call(meta, 'knownSitePricesSeededV1')) {
+    payload.knownSitePricesSeededV1 = !!meta.knownSitePricesSeededV1;
+  }
+  return payload;
 }
 
 function applyFromRemoteCachesFull() {
@@ -811,7 +942,9 @@ async function pushFullInventoryState() {
   addSet(root.collection('settings').doc('meta'), {
     version: 6,
     savedAt,
-    schema: 'vipo_inventory_v1'
+    schema: 'vipo_inventory_v1',
+    sitePricesByItemId: { ...sitePricesByItemId },
+    knownSitePricesSeededV1: !!knownSitePricesSeededV1
   });
   if (n > 0) await batch.commit();
 
@@ -830,6 +963,8 @@ function getVipoCloudDocumentPayload() {
     sales,
     orders,
     receivedByItemId,
+    sitePricesByItemId: { ...sitePricesByItemId },
+    knownSitePricesSeededV1: !!knownSitePricesSeededV1,
     payments,
     samplesCatalog
   };
@@ -838,6 +973,7 @@ function getVipoCloudDocumentPayload() {
 function applyVipoCloudDocument(data) {
   if (!data || typeof data !== 'object') return;
   vipoApplyingRemote = true;
+  let seedStats = { applied: 0, skipped: 0, didSetFlag: false };
   try {
     if (Array.isArray(data.sales)) sales = migrateSalesItemIds(data.sales);
     if (Array.isArray(data.orders)) orders = data.orders;
@@ -845,6 +981,13 @@ function applyVipoCloudDocument(data) {
     if (data.receivedByItemId && typeof data.receivedByItemId === 'object') {
       receivedByItemId = { ...data.receivedByItemId };
     }
+    if (data.knownSitePricesSeededV1 !== undefined) {
+      knownSitePricesSeededV1 = !!data.knownSitePricesSeededV1;
+    }
+    if (data.sitePricesByItemId !== undefined) {
+      sitePricesByItemId = sanitizeSitePricesMap(data.sitePricesByItemId);
+    }
+    seedStats = seedKnownSitePricesIfMissing();
     if (data.payments && typeof data.payments === 'object') {
       payments = mergePaymentsState(data.payments);
     }
@@ -869,6 +1012,8 @@ function applyVipoCloudDocument(data) {
       sales,
       orders,
       receivedByItemId,
+      sitePricesByItemId: { ...sitePricesByItemId },
+      knownSitePricesSeededV1: !!knownSitePricesSeededV1,
       payments
     };
     localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(payload));
@@ -881,6 +1026,9 @@ function applyVipoCloudDocument(data) {
     renderAll();
   } finally {
     vipoApplyingRemote = false;
+  }
+  if (seedStats.applied > 0 || seedStats.didSetFlag) {
+    saveState();
   }
 }
 
@@ -1532,6 +1680,78 @@ function formatIlsMoney(value) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
 }
 
+/** תא טבלת מכירות: מחיר אתר בזמן המכירה מול שולם בפועל + פער (רק לפי sale.sitePriceAtSaleIls, לא לפי sitePricesByItemId). */
+function buildSaleSitePriceGapTd(sale) {
+  const qty = Number(sale.qty);
+  const qtyOk = Number.isFinite(qty) && qty > 0;
+  const actualRaw = sale.unitPrice;
+  const hasActual = actualRaw !== null && actualRaw !== undefined && actualRaw !== '' && Number.isFinite(Number(actualRaw));
+  const actualUnit = hasActual ? Number(actualRaw) : NaN;
+
+  const siteRaw = sale.sitePriceAtSaleIls;
+  const hasSite = siteRaw !== null && siteRaw !== undefined && siteRaw !== '' && Number.isFinite(Number(siteRaw));
+  const siteUnit = hasSite ? Number(siteRaw) : NaN;
+
+  const siteStr = hasSite ? formatIls(siteUnit) : '—';
+  const paidStr = hasActual ? formatIls(actualUnit) : '—';
+
+  const baseRows = [
+    `<div class="sale-site-gap__row"><span class="sale-site-gap__lbl">אתר:</span> <span class="sale-site-gap__val">${siteStr}</span></div>`,
+    `<div class="sale-site-gap__row"><span class="sale-site-gap__lbl">שולם:</span> <span class="sale-site-gap__val">${paidStr}</span></div>`
+  ].join('');
+
+  if (!hasSite) {
+    const desk = baseRows + `<div class="sale-site-gap__row"><span class="sale-site-gap__lbl">פער:</span> <span class="sale-site-gap__dash">—</span></div>`;
+    const mob = `אתר: — · שולם: ${paidStr} · פער: —`;
+    return `<td class="td-sale-site-gap td-sale-site-gap--na"><div class="sale-site-gap sale-site-gap--desktop">${desk}</div><div class="sale-site-gap sale-site-gap--mobile">${mob}</div></td>`;
+  }
+
+  if (!hasActual || !qtyOk) {
+    const desk = baseRows + `<div class="sale-site-gap__row"><span class="sale-site-gap__lbl">פער:</span> <span class="sale-site-gap__dash">—</span></div>`;
+    const mob = `אתר: ${siteStr} · שולם: ${paidStr} · פער: —`;
+    return `<td class="td-sale-site-gap td-sale-site-gap--na"><div class="sale-site-gap sale-site-gap--desktop">${desk}</div><div class="sale-site-gap sale-site-gap--mobile">${mob}</div></td>`;
+  }
+
+  const siteTotalIls = siteUnit * qty;
+  const actualTotalIls = actualUnit * qty;
+  const deltaUnitIls = actualUnit - siteUnit;
+  const deltaTotalIls = actualTotalIls - siteTotalIls;
+
+  if (deltaUnitIls === 0) {
+    const desk = baseRows + `<div class="sale-site-gap__row sale-site-gap__row--status"><span class="sale-site-gap__equal">ללא פער</span></div>`;
+    const mob = `אתר: ${siteStr} · שולם: ${paidStr} · ללא פער`;
+    return `<td class="td-sale-site-gap td-sale-site-gap--equal"><div class="sale-site-gap sale-site-gap--desktop">${desk}</div><div class="sale-site-gap sale-site-gap--mobile">${mob}</div></td>`;
+  }
+
+  if (deltaUnitIls < 0) {
+    const discountUnitIls = Math.abs(deltaUnitIls);
+    const discountTotalIls = Math.abs(deltaTotalIls);
+    const deskLine =
+      qty > 1
+        ? `הנחה: ${formatIls(discountUnitIls)} ליח׳ / ${formatIls(discountTotalIls)} סה״כ`
+        : `הנחה: ${formatIls(discountUnitIls)}`;
+    const desk = baseRows + `<div class="sale-site-gap__row sale-site-gap__row--status"><span class="sale-site-gap__discount">${deskLine}</span></div>`;
+    const mob =
+      qty > 1
+        ? `אתר: ${siteStr} · שולם: ${paidStr} · הנחה: ${formatIls(discountUnitIls)}/יח׳ · ${formatIls(discountTotalIls)} סה״כ`
+        : `אתר: ${siteStr} · שולם: ${paidStr} · הנחה: ${formatIls(discountUnitIls)}`;
+    return `<td class="td-sale-site-gap td-sale-site-gap--discount"><div class="sale-site-gap sale-site-gap--desktop">${desk}</div><div class="sale-site-gap sale-site-gap--mobile">${mob}</div></td>`;
+  }
+
+  const aboveUnit = deltaUnitIls;
+  const aboveTotal = deltaTotalIls;
+  const deskLine =
+    qty > 1
+      ? `מעל מחיר אתר: ${formatIls(aboveUnit)} ליח׳ / ${formatIls(aboveTotal)} סה״כ`
+      : `מעל מחיר אתר: ${formatIls(aboveUnit)}`;
+  const desk = baseRows + `<div class="sale-site-gap__row sale-site-gap__row--status"><span class="sale-site-gap__above">${deskLine}</span></div>`;
+  const mob =
+    qty > 1
+      ? `אתר: ${siteStr} · שולם: ${paidStr} · מעל: ${formatIls(aboveUnit)}/יח׳ · ${formatIls(aboveTotal)} סה״כ`
+      : `אתר: ${siteStr} · שולם: ${paidStr} · מעל מחיר אתר: ${formatIls(aboveUnit)}`;
+  return `<td class="td-sale-site-gap td-sale-site-gap--above"><div class="sale-site-gap sale-site-gap--desktop">${desk}</div><div class="sale-site-gap sale-site-gap--mobile">${mob}</div></td>`;
+}
+
 function formatNumber(value, digits = 2) {
   if (value === null || value === undefined || value === '') return '—';
   return Number(value).toLocaleString('he-IL', { maximumFractionDigits: digits });
@@ -1615,9 +1835,31 @@ function addSaleLineRow(form, business) {
     <label class="sale-line-qty">כמות <input class="js-sale-qty" type="number" min="1" step="1" value="1" required /></label>
     <label class="sale-line-price">מחיר יח׳ ₪ <input class="js-sale-price" type="number" min="0" step="0.01" placeholder="אופציונלי" /></label>
     <button type="button" class="btn btn--small btn--muted js-remove-sale-line" title="הסר שורה">×</button>
+    <span class="sale-line-site-price js-site-price-hint" data-empty="1">מחיר אתר: —</span>
   `;
   wrap.appendChild(div);
   populateSaleSelect(div.querySelector('.js-sale-item'), business);
+  updateSaleLineSitePriceHint(div);
+}
+
+function updateSaleLineSitePriceHint(row) {
+  if (!row) return;
+  const hint = row.querySelector('.js-site-price-hint');
+  if (!hint) return;
+  const itemId = row.querySelector('.js-sale-item')?.value || '';
+  const price = itemId ? getSitePriceIls(itemId) : null;
+  if (price == null) {
+    hint.textContent = 'מחיר אתר: —';
+    hint.setAttribute('data-empty', '1');
+  } else {
+    hint.textContent = `מחיר אתר: ${formatIls(price)}`;
+    hint.removeAttribute('data-empty');
+  }
+}
+
+function updateAllSaleLineSitePriceHints(form) {
+  if (!form) return;
+  form.querySelectorAll('.js-sale-lines .sale-line-row').forEach(updateSaleLineSitePriceHint);
 }
 
 function setupSaleLineListeners(form, fixedBusiness) {
@@ -1648,6 +1890,15 @@ function setupSaleLineListeners(form, fixedBusiness) {
       e.target.closest('.sale-line-row')?.remove();
     });
   }
+  if (!form.dataset.saleLineChangeBound) {
+    form.dataset.saleLineChangeBound = '1';
+    form.addEventListener('change', e => {
+      const sel = e.target;
+      if (!sel || !sel.classList || !sel.classList.contains('js-sale-item')) return;
+      const row = sel.closest('.sale-line-row');
+      if (row) updateSaleLineSitePriceHint(row);
+    });
+  }
 }
 
 function repopulateAllSaleFormLineSelects() {
@@ -1656,6 +1907,7 @@ function repopulateAllSaleFormLineSelects() {
     const biz = getSaleFormBusiness(form, form.id === 'saleFormNissim' ? 'nissim' : form.id === 'saleFormDoron' ? 'doron' : null);
     if (!biz) return;
     form.querySelectorAll('.js-sale-lines .js-sale-item').forEach(sel => populateSaleSelect(sel, biz));
+    updateAllSaleLineSitePriceHints(form);
   });
 }
 
@@ -1769,19 +2021,23 @@ function addSaleFromForm(form, business) {
   const meta = readSharedSaleMeta(form);
   const createdAt = new Date().toISOString();
   const groupId = parsed.lines.length > 1 ? newId() : null;
-  const batch = parsed.lines.map((line, idx) => ({
-    id: newId(),
-    date: meta.date,
-    itemId: line.itemId,
-    qty: line.qty,
-    unitPrice: line.unitPrice,
-    customer: meta.customer,
-    status: meta.status,
-    notes: meta.notes,
-    createdAt,
-    saleGroupId: groupId,
-    lineInGroup: groupId ? idx : undefined
-  }));
+  const batch = parsed.lines.map((line, idx) => {
+    const sitePrice = getSitePriceIls(line.itemId);
+    return {
+      id: newId(),
+      date: meta.date,
+      itemId: line.itemId,
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      customer: meta.customer,
+      status: meta.status,
+      notes: meta.notes,
+      createdAt,
+      saleGroupId: groupId,
+      lineInGroup: groupId ? idx : undefined,
+      sitePriceAtSaleIls: sitePrice == null ? null : sitePrice
+    };
+  });
   for (let i = batch.length - 1; i >= 0; i--) sales.unshift(batch[i]);
   saveState();
   resetSaleFormAfterSubmit(form, biz);
@@ -1789,6 +2045,9 @@ function addSaleFromForm(form, business) {
   showToast(parsed.lines.length > 1 ? `נשמרה מכירה עם ${parsed.lines.length} מוצרים` : 'המכירה נשמרה והמלאי עודכן');
   const firstSel = form.querySelector('.js-sale-lines .js-sale-item');
   if (firstSel) requestAnimationFrame(() => firstSel.focus());
+  try {
+    form.dispatchEvent(new CustomEvent('vipo:sale-saved', { bubbles: true, detail: { business: biz, count: parsed.lines.length } }));
+  } catch (_) { /* */ }
 }
 
 function renderDashboard() {
@@ -1846,6 +2105,7 @@ function renderInventoryNissim() {
     const hay = `${item.product} ${item.original} ${item.size}`.toLowerCase();
     return !q || hay.includes(q);
   });
+  const focusedItemId = captureSitePriceFocusId(els.inventoryBodyNissim);
   els.inventoryBodyNissim.innerHTML = rows.map((item, idx) => {
     const sold = getSoldQty(item.id);
     const rec = getReceivedQty(item.id);
@@ -1853,6 +2113,8 @@ function renderInventoryNissim() {
     const short = getShortageFromOrder(item.id);
     const shortCell = short > 0 ? String(short) : short < 0 ? `עודף ${-short}` : '—';
     const badge = rem === 0 ? 'badge--empty' : rem <= 2 ? 'badge--low' : '';
+    const sitePriceVal = getSitePriceIls(item.id);
+    const sitePriceAttr = sitePriceVal == null ? '' : String(sitePriceVal);
     return `
       <tr>
         <td>${idx + 1}</td>
@@ -1866,8 +2128,10 @@ function renderInventoryNissim() {
         <td>${shortCell}</td>
         <td>${formatUsd(item.priceUsd)}</td>
         <td>${formatUsd(item.amountUsd)}</td>
+        <td class="td-site-price"><input class="site-price-input" type="number" inputmode="decimal" min="0" step="0.01" data-item-id="${escapeHtml(item.id)}" value="${escapeHtml(sitePriceAttr)}" placeholder="—" aria-label="מחיר אתר בש״ח" autocomplete="off" /></td>
       </tr>`;
   }).join('');
+  restoreSitePriceFocus(els.inventoryBodyNissim, focusedItemId);
 }
 
 function renderInventoryDoron() {
@@ -1876,12 +2140,15 @@ function renderInventoryDoron() {
     els.inventoryBodyDoron.innerHTML = '';
     return;
   }
+  const focusedItemId = captureSitePriceFocusId(els.inventoryBodyDoron);
   const sold = getSoldQty(item.id);
   const rec = getReceivedQty(item.id);
   const rem = getRemainingQty(item.id);
   const short = getShortageFromOrder(item.id);
   const shortCell = short > 0 ? String(short) : short < 0 ? `עודף ${-short}` : '—';
   const badge = rem === 0 ? 'badge--empty' : rem <= 5 ? 'badge--low' : '';
+  const sitePriceVal = getSitePriceIls(item.id);
+  const sitePriceAttr = sitePriceVal == null ? '' : String(sitePriceVal);
   els.inventoryBodyDoron.innerHTML = `
     <tr>
       <td>1</td>
@@ -1892,7 +2159,9 @@ function renderInventoryDoron() {
       <td>${sold}</td>
       <td><span class="badge badge--doron ${badge}">${rem}</span></td>
       <td>${shortCell}</td>
+      <td class="td-site-price"><input class="site-price-input" type="number" inputmode="decimal" min="0" step="0.01" data-item-id="${escapeHtml(item.id)}" value="${escapeHtml(sitePriceAttr)}" placeholder="—" aria-label="מחיר אתר בש״ח" autocomplete="off" /></td>
     </tr>`;
+  restoreSitePriceFocus(els.inventoryBodyDoron, focusedItemId);
 }
 
 function renderSalesTable() {
@@ -1922,8 +2191,11 @@ function renderSalesTable() {
       const custCell = isFirst ? escapeHtml(sale.customer || '—') : '';
       const statCell = isFirst ? escapeHtml(sale.status || '—') : '';
       const notesCell = isFirst ? escapeHtml(sale.notes || '—') : '';
-      const delBtn = isFirst
-        ? `<button type="button" class="btn btn--small btn--danger" onclick="deleteSale('${escapeHtml(sale.id)}')">מחק</button>`
+      const actionsHtml = isFirst
+        ? `<span class="sales-actions">`
+          + `<button type="button" class="btn btn--small" onclick="openSaleEdit('${escapeHtml(sale.id)}')">ערוך</button>`
+          + `<button type="button" class="btn btn--small btn--danger" onclick="deleteSale('${escapeHtml(sale.id)}')">מחק</button>`
+          + `</span>`
         : '';
       const idxCell = isFirst ? `${String(displayIndex)}${bundlePill}` : '';
       const trClass = isMulti ? (isFirst ? 'sale-tr--bundle-start' : 'sale-tr--bundle-continuation') : '';
@@ -1937,10 +2209,11 @@ function renderSalesTable() {
         <td>${Number(sale.qty || 0)}</td>
         <td>${sale.unitPrice ? formatIls(sale.unitPrice) : '—'}</td>
         <td>${sale.unitPrice ? formatIls(total) : '—'}</td>
+        ${buildSaleSitePriceGapTd(sale)}
         <td>${custCell}</td>
         <td>${statCell}</td>
         <td>${notesCell}</td>
-        <td>${delBtn}</td>
+        <td>${actionsHtml}</td>
       </tr>`);
     });
   }
@@ -1963,6 +2236,224 @@ function deleteSale(id) {
   showToast('המכירה נמחקה — המלאי עודכן');
 }
 window.deleteSale = deleteSale;
+
+function populateSaleEditItemSelect(selectEl, currentItemId) {
+  if (!selectEl) return;
+  selectEl.innerHTML = '';
+  const businesses = [['nissim', 'ניסים'], ['doron', 'דורון']];
+  for (const [biz, label] of businesses) {
+    const list = openingInventory.filter(i => i.business === biz);
+    if (!list.length) continue;
+    const og = document.createElement('optgroup');
+    og.label = label;
+    for (const it of list) {
+      const opt = document.createElement('option');
+      opt.value = it.id;
+      opt.textContent = `${it.product} · ${it.size}`;
+      if (it.id === currentItemId) opt.selected = true;
+      og.appendChild(opt);
+    }
+    selectEl.appendChild(og);
+  }
+}
+
+function openSaleEdit(id) {
+  const sale = sales.find(s => s.id === id);
+  if (!sale || !els.saleEditDialog || !els.saleEditForm) return;
+  els.saleEditForm.setAttribute('data-sale-id', sale.id);
+  populateSaleEditItemSelect(els.saleEditItem, sale.itemId);
+  els.saleEditDate.value = sale.date || '';
+  els.saleEditQty.value = Number(sale.qty || 1);
+  els.saleEditPrice.value = sale.unitPrice ? Number(sale.unitPrice) : '';
+  els.saleEditCustomer.value = sale.customer || '';
+  els.saleEditStatus.value = sale.status || 'שולם';
+  els.saleEditNotes.value = sale.notes || '';
+  if (els.saleEditError) {
+    els.saleEditError.hidden = true;
+    els.saleEditError.textContent = '';
+  }
+  try {
+    els.saleEditDialog.showModal();
+  } catch (_) {
+    els.saleEditDialog.setAttribute('open', '');
+  }
+}
+window.openSaleEdit = openSaleEdit;
+
+function closeSaleEdit() {
+  if (!els.saleEditDialog) return;
+  try {
+    els.saleEditDialog.close();
+  } catch (_) {
+    els.saleEditDialog.removeAttribute('open');
+  }
+}
+
+function handleSaleEditSubmit(ev) {
+  ev.preventDefault();
+  if (!els.saleEditForm) return;
+  const id = els.saleEditForm.getAttribute('data-sale-id') || '';
+  const sale = sales.find(s => s.id === id);
+  if (!sale) { closeSaleEdit(); return; }
+  const showError = msg => {
+    if (els.saleEditError) {
+      els.saleEditError.textContent = msg;
+      els.saleEditError.hidden = false;
+    }
+  };
+  const newItemId = els.saleEditItem.value;
+  if (!newItemId || !getItem(newItemId)) { showError('בחרו מוצר תקין'); return; }
+  const newQty = Number(els.saleEditQty.value);
+  if (!Number.isFinite(newQty) || newQty < 1) { showError('כמות חייבת להיות מספר חיובי'); return; }
+  const rawPrice = String(els.saleEditPrice.value || '').trim();
+  const newPrice = rawPrice === '' ? 0 : Number(rawPrice);
+  if (!Number.isFinite(newPrice) || newPrice < 0) { showError('מחיר לא תקין'); return; }
+  const newDate = els.saleEditDate.value;
+  if (!newDate) { showError('יש לבחור תאריך'); return; }
+  const newCustomer = (els.saleEditCustomer.value || '').trim();
+  const newStatus = els.saleEditStatus.value || '';
+  const newNotes = (els.saleEditNotes.value || '').trim();
+
+  sale.itemId = newItemId;
+  sale.qty = newQty;
+  sale.unitPrice = newPrice;
+
+  const group = sale.saleGroupId ? sales.filter(s => s.saleGroupId === sale.saleGroupId) : [sale];
+  for (const s of group) {
+    s.date = newDate;
+    s.customer = newCustomer;
+    s.status = newStatus;
+    s.notes = newNotes;
+  }
+
+  saveState();
+  renderAll();
+  closeSaleEdit();
+  showToast('המכירה עודכנה');
+}
+
+function openSaleFormNissim() {
+  const dlg = els.saleFormNissimDialog;
+  if (!dlg) return;
+  try {
+    setSaleFormDates(els.saleFormNissim);
+    if (els.saleFormNissim && !els.saleFormNissim.querySelector('.sale-line-row')) {
+      addSaleLineRow(els.saleFormNissim, 'nissim');
+    }
+  } catch (_) { /* */ }
+  try {
+    dlg.showModal();
+  } catch (_) {
+    dlg.setAttribute('open', '');
+  }
+  requestAnimationFrame(() => {
+    const firstSel = els.saleFormNissim?.querySelector('.js-sale-lines .js-sale-item');
+    if (firstSel) {
+      try { firstSel.focus({ preventScroll: true }); } catch (_) { firstSel.focus(); }
+    }
+  });
+}
+
+function closeSaleFormNissim() {
+  const dlg = els.saleFormNissimDialog;
+  if (!dlg) return;
+  try { dlg.close(); } catch (_) { dlg.removeAttribute('open'); }
+}
+
+function initSaleFormNissimDialog() {
+  const btn = els.openSaleFormNissimBtn;
+  const dlg = els.saleFormNissimDialog;
+  const x = els.saleFormNissimDialogCloseX;
+  btn?.addEventListener('click', openSaleFormNissim);
+  x?.addEventListener('click', closeSaleFormNissim);
+  if (dlg) {
+    dlg.addEventListener('click', ev => {
+      if (ev.target === dlg) closeSaleFormNissim();
+    });
+    dlg.addEventListener('cancel', ev => {
+      ev.preventDefault();
+      closeSaleFormNissim();
+    });
+  }
+  els.saleFormNissim?.addEventListener('vipo:sale-saved', () => {
+    closeSaleFormNissim();
+  });
+}
+
+function captureSitePriceFocusId(bodyEl) {
+  const ae = document.activeElement;
+  if (!ae || !bodyEl || !bodyEl.contains(ae)) return null;
+  if (!ae.classList || !ae.classList.contains('site-price-input')) return null;
+  return ae.getAttribute('data-item-id') || null;
+}
+
+function restoreSitePriceFocus(bodyEl, itemId) {
+  if (!itemId || !bodyEl) return;
+  const safe = (window.CSS && typeof CSS.escape === 'function') ? CSS.escape(itemId) : String(itemId).replace(/"/g, '\\"');
+  const el = bodyEl.querySelector('.site-price-input[data-item-id="' + safe + '"]');
+  if (el) {
+    try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); }
+  }
+}
+
+function initSitePriceInputs() {
+  const handler = ev => {
+    const input = ev.target;
+    if (!input || !input.classList || !input.classList.contains('site-price-input')) return;
+    const id = input.getAttribute('data-item-id') || '';
+    if (!id) return;
+    const status = setSitePriceIls(id, input.value);
+    const after = getSitePriceIls(id);
+    input.value = after == null ? '' : String(after);
+    if (status === 'saved') {
+      saveState();
+      showToast('מחיר אתר נשמר');
+    } else if (status === 'cleared') {
+      saveState();
+      showToast('מחיר אתר נמחק');
+    } else if (status === 'invalid') {
+      showToast('מחיר אתר לא תקין', 2200);
+    }
+  };
+  const keyHandler = ev => {
+    if (ev.key !== 'Enter') return;
+    if (!ev.target || !ev.target.classList || !ev.target.classList.contains('site-price-input')) return;
+    ev.preventDefault();
+    ev.target.blur();
+  };
+  els.inventoryBodyNissim?.addEventListener('change', handler);
+  els.inventoryBodyDoron?.addEventListener('change', handler);
+  els.inventoryBodyNissim?.addEventListener('keydown', keyHandler);
+  els.inventoryBodyDoron?.addEventListener('keydown', keyHandler);
+}
+
+function initSalesEditMode() {
+  const panel = document.getElementById('panel-sales');
+  const btn = els.salesEditModeBtn;
+  if (panel && btn) {
+    panel.setAttribute('data-edit-mode', 'off');
+    btn.setAttribute('aria-pressed', 'false');
+    btn.textContent = 'ערוך';
+    btn.addEventListener('click', () => {
+      const on = panel.getAttribute('data-edit-mode') === 'on';
+      panel.setAttribute('data-edit-mode', on ? 'off' : 'on');
+      btn.setAttribute('aria-pressed', on ? 'false' : 'true');
+      btn.textContent = on ? 'ערוך' : 'סיום עריכה';
+    });
+  }
+  if (els.saleEditDialog) {
+    els.saleEditCloseX?.addEventListener('click', closeSaleEdit);
+    els.saleEditCancelBtn?.addEventListener('click', closeSaleEdit);
+    els.saleEditDialog.addEventListener('click', ev => {
+      if (ev.target === els.saleEditDialog) closeSaleEdit();
+    });
+    els.saleEditDialog.addEventListener('cancel', ev => {
+      ev.preventDefault();
+      closeSaleEdit();
+    });
+  }
+  els.saleEditForm?.addEventListener('submit', handleSaleEditSubmit);
+}
 
 function getFilteredOrders() {
   const b = els.orderFilterBusiness.value;
@@ -2392,6 +2883,8 @@ function exportBackup() {
     sales,
     orders,
     receivedByItemId,
+    sitePricesByItemId: { ...sitePricesByItemId },
+    knownSitePricesSeededV1: !!knownSitePricesSeededV1,
     payments,
     samplesCatalog
   };
@@ -2410,6 +2903,12 @@ function importBackup(ev) {
       else if (!payload.orders) orders = [];
       if (payload.receivedByItemId && typeof payload.receivedByItemId === 'object') {
         receivedByItemId = { ...payload.receivedByItemId };
+      }
+      if (payload.sitePricesByItemId !== undefined) {
+        sitePricesByItemId = sanitizeSitePricesMap(payload.sitePricesByItemId);
+      }
+      if (payload.knownSitePricesSeededV1 !== undefined) {
+        knownSitePricesSeededV1 = payload.knownSitePricesSeededV1 === true;
       }
       if (payload.payments && typeof payload.payments === 'object') {
         payments = mergePaymentsState(payload.payments);
@@ -2716,7 +3215,10 @@ async function init() {
   sales = state.sales;
   orders = state.orders;
   receivedByItemId = state.receivedByItemId || {};
+  knownSitePricesSeededV1 = state.knownSitePricesSeededV1 === true;
+  sitePricesByItemId = sanitizeSitePricesMap(state.sitePricesByItemId);
   payments = state.payments || defaultPaymentsState();
+  seedKnownSitePricesIfMissing();
   loadSamplesCatalog();
   initFirebaseAuthDialog();
   await initVipoCloudSync();
@@ -2774,6 +3276,9 @@ async function init() {
     els.inventorySearchNissim.focus();
   });
   els.salesSearch.addEventListener('input', renderSalesTable);
+  initSalesEditMode();
+  initSitePriceInputs();
+  initSaleFormNissimDialog();
   els.samplesSearch?.addEventListener('input', renderSamplesTable);
   els.exportSamplesCsvBtn?.addEventListener('click', () => downloadCsv('vipo-samples-catalog.csv', buildSamplesCsvRows()));
   els.samplesBody?.addEventListener('click', e => {
