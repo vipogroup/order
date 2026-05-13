@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- עדכנו ?v= בעת פריסה כדי לשבור מטמון Safari/GitHub Pages -->
-  <link rel="stylesheet" href="css/styles.css?v=site-price-7" />
+  <link rel="stylesheet" href="css/styles.css?v=sale-flags-2" />
   <script>
     (function () {
       try {
@@ -312,6 +312,10 @@
               <option value="בהמתנה">בהמתנה</option>
             </select>
           </label>
+              <div class="sale-form-flags sale-bool-flags full" role="group" aria-label="סימוני מכירה">
+                <label class="sale-bool-flag"><input type="checkbox" class="js-sale-paid-cash" /><span>שולם במזומן</span></label>
+                <label class="sale-bool-flag"><input type="checkbox" class="js-sale-invoice-given" /><span>קיבל חשבונית</span></label>
+              </div>
               <label class="full">הערות <textarea class="js-sale-notes" rows="2"></textarea></label>
               <button type="submit" class="btn btn--primary btn--doron-cta full">שמור מכירה</button>
         </form>
@@ -665,6 +669,10 @@
                 <option value="בהמתנה">בהמתנה</option>
               </select>
             </label>
+            <div class="sale-form-flags sale-bool-flags full" role="group" aria-label="סימוני מכירה">
+              <label class="sale-bool-flag"><input type="checkbox" class="js-sale-paid-cash" /><span>שולם במזומן</span></label>
+              <label class="sale-bool-flag"><input type="checkbox" class="js-sale-invoice-given" /><span>קיבל חשבונית</span></label>
+            </div>
             <label class="full">הערות <textarea class="js-sale-notes" rows="2"></textarea></label>
             <button type="submit" class="btn btn--primary full">שמור מכירה</button>
           </form>
@@ -703,6 +711,7 @@
                 <th>מחיר ₪</th>
                 <th>סה״כ ₪</th>
                 <th class="th-sale-site-gap">מחיר אתר ₪ · פער</th>
+                <th class="th-sale-flags">מזומן · חשבונית</th>
                 <th>לקוח</th>
                 <th>תשלום</th>
                 <th>הערות</th>
@@ -810,6 +819,10 @@
             <option value="בהמתנה">בהמתנה</option>
           </select>
         </label>
+        <div class="sale-form-flags sale-bool-flags full" role="group" aria-label="סימוני מכירה">
+          <label class="sale-bool-flag"><input type="checkbox" class="js-sale-paid-cash" /><span>שולם במזומן</span></label>
+          <label class="sale-bool-flag"><input type="checkbox" class="js-sale-invoice-given" /><span>קיבל חשבונית</span></label>
+        </div>
         <label class="full">הערות <textarea class="js-sale-notes" rows="2" placeholder="אופציונלי"></textarea></label>
         <button type="submit" class="btn btn--primary full">שמור מכירה</button>
       </form>
@@ -820,7 +833,7 @@
     <div class="cloud-sync-dialog__inner">
       <button type="button" class="cloud-sync-dialog__x" id="saleEditCloseX" aria-label="סגירה">×</button>
       <h2 id="saleEditTitle" class="cloud-sync-dialog__title">עריכת מכירה</h2>
-      <p class="cloud-sync-dialog__lead">שינויי תאריך · לקוח · סטטוס · הערות יחולו על כל המוצרים באותה מכירה. שינוי מוצר · כמות · מחיר משפיע רק על השורה שנערכת ועל המלאי בהתאם.</p>
+      <p class="cloud-sync-dialog__lead">שינויי תאריך · לקוח · סטטוס · הערות · מזומן · חשבונית יחולו על כל המוצרים באותה מכירה. שינוי מוצר · כמות · מחיר משפיע רק על השורה שנערכת ועל המלאי בהתאם.</p>
       <form id="saleEditForm" class="sale-form" data-sale-id="">
         <label>תאריך <input id="saleEditDate" type="date" required /></label>
         <label class="full">מוצר
@@ -837,6 +850,10 @@
             <option value="בהמתנה">בהמתנה</option>
           </select>
         </label>
+        <div class="sale-form-flags sale-bool-flags full" role="group" aria-label="סימוני מכירה">
+          <label class="sale-bool-flag"><input type="checkbox" id="saleEditPaidCash" /><span>שולם במזומן</span></label>
+          <label class="sale-bool-flag"><input type="checkbox" id="saleEditInvoiceGiven" /><span>קיבל חשבונית</span></label>
+        </div>
         <label class="full">הערות <textarea id="saleEditNotes" rows="2"></textarea></label>
         <p id="saleEditError" class="cloud-sync-dialog__error" hidden></p>
         <div class="cloud-sync-dialog__actions">
@@ -848,6 +865,6 @@
   </dialog>
 
   <script src="js/firebase-config.js?v=8"></script>
-  <script src="js/app.js?v=site-price-7"></script>
+  <script src="js/app.js?v=sale-flags-2"></script>
 </body>
 </html>

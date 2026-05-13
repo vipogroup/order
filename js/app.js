@@ -454,6 +454,8 @@ const els = {
   saleEditCustomer: document.getElementById('saleEditCustomer'),
   saleEditStatus: document.getElementById('saleEditStatus'),
   saleEditNotes: document.getElementById('saleEditNotes'),
+  saleEditPaidCash: document.getElementById('saleEditPaidCash'),
+  saleEditInvoiceGiven: document.getElementById('saleEditInvoiceGiven'),
   saleEditError: document.getElementById('saleEditError'),
   saleEditCloseX: document.getElementById('saleEditCloseX'),
   saleEditCancelBtn: document.getElementById('saleEditCancelBtn'),
@@ -1752,6 +1754,19 @@ function buildSaleSitePriceGapTd(sale) {
   return `<td class="td-sale-site-gap td-sale-site-gap--above"><div class="sale-site-gap sale-site-gap--desktop">${desk}</div><div class="sale-site-gap sale-site-gap--mobile">${mob}</div></td>`;
 }
 
+/** תא יומן מכירות: מזומן · חשבונית (4B). חסר = — ; true/false מוצגים במפורש. */
+function saleFlagSpan(val) {
+  if (val === true) return '<span class="sale-flag-yes">כן</span>';
+  if (val === false) return '<span class="sale-flag-no">לא</span>';
+  return '<span class="sale-flag-na">—</span>';
+}
+
+function buildSaleCashInvoiceTd(sale) {
+  const deskInner = `<div class="sale-flags__row"><span class="sale-flags__lbl">מזומן:</span> ${saleFlagSpan(sale.paidCash)}</div><div class="sale-flags__row"><span class="sale-flags__lbl">חשבונית:</span> ${saleFlagSpan(sale.invoiceGiven)}</div>`;
+  const mob = `מזומן: ${saleFlagSpan(sale.paidCash)} · חשבונית: ${saleFlagSpan(sale.invoiceGiven)}`;
+  return `<td class="td-sale-flags"><div class="sale-flags sale-flags--desktop">${deskInner}</div><div class="sale-flags sale-flags--mobile">${mob}</div></td>`;
+}
+
 function formatNumber(value, digits = 2) {
   if (value === null || value === undefined || value === '') return '—';
   return Number(value).toLocaleString('he-IL', { maximumFractionDigits: digits });
@@ -1916,7 +1931,9 @@ function readSharedSaleMeta(form) {
     date: form.querySelector('.js-sale-date')?.value,
     customer: form.querySelector('.js-sale-customer')?.value?.trim() || '',
     status: form.querySelector('.js-sale-status')?.value || 'שולם',
-    notes: form.querySelector('.js-sale-notes')?.value?.trim() || ''
+    notes: form.querySelector('.js-sale-notes')?.value?.trim() || '',
+    paidCash: !!form.querySelector('.js-sale-paid-cash')?.checked,
+    invoiceGiven: !!form.querySelector('.js-sale-invoice-given')?.checked
   };
 }
 
@@ -1958,6 +1975,10 @@ function resetSaleFormAfterSubmit(form, business) {
   if (notes) notes.value = '';
   const statusSel = form.querySelector('.js-sale-status');
   if (statusSel) statusSel.selectedIndex = 0;
+  const paidCashCb = form.querySelector('.js-sale-paid-cash');
+  if (paidCashCb) paidCashCb.checked = false;
+  const invCb = form.querySelector('.js-sale-invoice-given');
+  if (invCb) invCb.checked = false;
   const wrap = form.querySelector('.js-sale-lines');
   if (wrap) {
     wrap.innerHTML = '';
@@ -2035,7 +2056,9 @@ function addSaleFromForm(form, business) {
       createdAt,
       saleGroupId: groupId,
       lineInGroup: groupId ? idx : undefined,
-      sitePriceAtSaleIls: sitePrice == null ? null : sitePrice
+      sitePriceAtSaleIls: sitePrice == null ? null : sitePrice,
+      paidCash: !!meta.paidCash,
+      invoiceGiven: !!meta.invoiceGiven
     };
   });
   for (let i = batch.length - 1; i >= 0; i--) sales.unshift(batch[i]);
@@ -2191,6 +2214,7 @@ function renderSalesTable() {
       const custCell = isFirst ? escapeHtml(sale.customer || '—') : '';
       const statCell = isFirst ? escapeHtml(sale.status || '—') : '';
       const notesCell = isFirst ? escapeHtml(sale.notes || '—') : '';
+      const flagsTd = isFirst ? buildSaleCashInvoiceTd(sale) : '<td class="td-sale-flags"></td>';
       const actionsHtml = isFirst
         ? `<span class="sales-actions">`
           + `<button type="button" class="btn btn--small" onclick="openSaleEdit('${escapeHtml(sale.id)}')">ערוך</button>`
@@ -2210,6 +2234,7 @@ function renderSalesTable() {
         <td>${sale.unitPrice ? formatIls(sale.unitPrice) : '—'}</td>
         <td>${sale.unitPrice ? formatIls(total) : '—'}</td>
         ${buildSaleSitePriceGapTd(sale)}
+        ${flagsTd}
         <td>${custCell}</td>
         <td>${statCell}</td>
         <td>${notesCell}</td>
@@ -2268,6 +2293,8 @@ function openSaleEdit(id) {
   els.saleEditCustomer.value = sale.customer || '';
   els.saleEditStatus.value = sale.status || 'שולם';
   els.saleEditNotes.value = sale.notes || '';
+  if (els.saleEditPaidCash) els.saleEditPaidCash.checked = sale.paidCash === true;
+  if (els.saleEditInvoiceGiven) els.saleEditInvoiceGiven.checked = sale.invoiceGiven === true;
   if (els.saleEditError) {
     els.saleEditError.hidden = true;
     els.saleEditError.textContent = '';
@@ -2313,6 +2340,8 @@ function handleSaleEditSubmit(ev) {
   const newCustomer = (els.saleEditCustomer.value || '').trim();
   const newStatus = els.saleEditStatus.value || '';
   const newNotes = (els.saleEditNotes.value || '').trim();
+  const newPaidCash = !!els.saleEditPaidCash?.checked;
+  const newInvoiceGiven = !!els.saleEditInvoiceGiven?.checked;
 
   sale.itemId = newItemId;
   sale.qty = newQty;
@@ -2324,6 +2353,8 @@ function handleSaleEditSubmit(ev) {
     s.customer = newCustomer;
     s.status = newStatus;
     s.notes = newNotes;
+    s.paidCash = newPaidCash;
+    s.invoiceGiven = newInvoiceGiven;
   }
 
   saveState();
@@ -2834,10 +2865,26 @@ function saveReceivedFromForm() {
 
 function buildSalesCsvRows() {
   return [
-    ['date', 'business', 'product', 'size', 'qty', 'unit_price_ils', 'total_ils', 'customer', 'payment_status', 'notes', 'sale_group_id'],
+    [
+      'date',
+      'business',
+      'product',
+      'size',
+      'qty',
+      'unit_price_ils',
+      'total_ils',
+      'customer',
+      'payment_status',
+      'notes',
+      'sale_group_id',
+      'paid_cash',
+      'invoice_given'
+    ],
     ...sales.map(sale => {
       const item = getItem(sale.itemId) || {};
       const total = Number(sale.qty || 0) * Number(sale.unitPrice || 0);
+      const paidCashCsv = sale.paidCash === true ? 'true' : sale.paidCash === false ? 'false' : '';
+      const invCsv = sale.invoiceGiven === true ? 'true' : sale.invoiceGiven === false ? 'false' : '';
       return [
         sale.date,
         BUSINESS_LABEL[item.business] || '',
@@ -2849,7 +2896,9 @@ function buildSalesCsvRows() {
         sale.customer,
         sale.status,
         sale.notes,
-        sale.saleGroupId || ''
+        sale.saleGroupId || '',
+        paidCashCsv,
+        invCsv
       ];
     })
   ];
